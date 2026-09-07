@@ -1,0 +1,632 @@
+/**
+ * Row and enum types for the MEAL MIS API.
+ *
+ * Generated from the PostgreSQL schema owned by meal-mis-backend
+ * (`npm run gen:types` in the backend repo). Do not edit by hand: change the
+ * schema in a backend migration and regenerate.
+ */
+
+/* ------------------------------- enums ------------------------------- */
+
+export type ActionPriority = "low" | "medium" | "high" | "critical";
+export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other";
+export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled";
+export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
+export type AppRole = "super_admin" | "programme_manager" | "monitoring_officer" | "partner_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+export type AttendanceStatus = "present" | "absent" | "excused";
+export type EmploymentStatus = "placed" | "retained" | "exited" | "verified" | "pending_verification";
+export type EmploymentType = "wage_employment" | "self_employment" | "apprenticeship" | "internship" | "contract";
+export type EnterpriseStatus = "active" | "inactive" | "graduated" | "dropped";
+export type EnterpriseType = "trade" | "service" | "manufacturing" | "agriculture" | "technology" | "other";
+export type FeedbackSource = "helpline" | "suggestion_box" | "meeting" | "survey" | "other";
+export type FeedbackStatus = "new" | "in_review" | "resolved" | "closed";
+export type FeedbackType = "complaint" | "suggestion" | "compliment" | "query";
+export type FinanceRecordType = "grant" | "disbursement" | "expense" | "reimbursement";
+export type FinanceStatus = "planned" | "committed" | "disbursed" | "reconciled" | "cancelled";
+export type FspType = "bank" | "microfinance" | "cooperative" | "saving_group" | "fintech" | "other";
+export type GovernanceEngagementType = "stakeholder_meeting" | "policy_dialogue" | "advocacy_action" | "coordination_forum" | "consultation" | "other";
+export type GovernanceStatus = "planned" | "held" | "cancelled" | "followed_up";
+export type IndicatorFrequency = "monthly" | "quarterly" | "biannual" | "annual";
+export type IndicatorLevel = "output" | "outcome" | "impact";
+export type IndicatorStatus = "active" | "paused" | "retired";
+export type LoanStatus = "applied" | "under_review" | "approved" | "rejected" | "disbursed" | "repaying" | "closed" | "defaulted";
+export type ParticipantSex = "male" | "female";
+export type ParticipantStatus = "active" | "graduated" | "dropped" | "inactive";
+export type PartnerType = "government" | "ngo" | "private_sector" | "cso" | "media" | "other";
+export type PartnershipStatus = "active" | "pending" | "completed" | "terminated";
+export type SafeguardingCaseStatus = "open" | "investigating" | "closed" | "referred";
+export type SafeguardingCaseType = "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other";
+export type SavingsStatus = "active" | "dormant" | "closed";
+export type TrainingStatus = "planned" | "ongoing" | "completed" | "cancelled";
+export type TrainingType = "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other";
+
+/* -------------------------------- rows -------------------------------- */
+
+export interface ActionItemRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  title: string;
+  description: string | null;
+  source: "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other";
+  source_record_id: string | null;
+  owner: string | null;
+  due_date: string | null;
+  priority: "low" | "medium" | "high" | "critical";
+  status: "open" | "in_progress" | "blocked" | "completed" | "cancelled";
+  progress_percent: number;
+  completed_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AttachmentRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  module: string;
+  record_id: string;
+  file_name: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditLogRow {
+  id: string;
+  user_id: string | null;
+  action: string;
+  table_name: string;
+  record_id: string | null;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface EmploymentPlacementRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  participant_id: string | null;
+  placement_type: "wage_employment" | "self_employment" | "apprenticeship" | "internship" | "contract";
+  employer_name: string | null;
+  job_title: string | null;
+  sector: string | null;
+  region: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  monthly_income: number | null;
+  currency: string;
+  contract_type: string | null;
+  is_formal: boolean;
+  status: "placed" | "retained" | "exited" | "verified" | "pending_verification";
+  verified_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnterpriseRow {
+  id: string;
+  created_by: string;
+  enterprise_name: string;
+  owner_name: string | null;
+  enterprise_type: "trade" | "service" | "manufacturing" | "agriculture" | "technology" | "other" | null;
+  sector: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  phone: string | null;
+  email: string | null;
+  registration_status: string | null;
+  established_date: string | null;
+  employees_male: number | null;
+  employees_female: number | null;
+  employees_youth: number | null;
+  status: "active" | "inactive" | "graduated" | "dropped";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+  owner_participant_id: string | null;
+}
+
+export interface FeedbackRow {
+  id: string;
+  created_by: string | null;
+  feedback_type: "complaint" | "suggestion" | "compliment" | "query";
+  source: "helpline" | "suggestion_box" | "meeting" | "survey" | "other";
+  description: string;
+  status: "new" | "in_review" | "resolved" | "closed";
+  resolution: string | null;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+  reporter_name: string | null;
+  reporter_contact: string | null;
+  is_public_submission: boolean;
+  reference_code: string | null;
+}
+
+export interface FinanceRecordRow {
+  id: string;
+  created_by: string;
+  record_type: "grant" | "disbursement" | "expense" | "reimbursement";
+  amount: number;
+  currency: string;
+  partner_id: string | null;
+  description: string | null;
+  period: string | null;
+  status: "planned" | "committed" | "disbursed" | "reconciled" | "cancelled";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface FinancialServiceProviderRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  name: string;
+  provider_type: "bank" | "microfinance" | "cooperative" | "saving_group" | "fintech" | "other";
+  region: string | null;
+  zone: string | null;
+  contact_person: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  products: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GovernanceEngagementRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  title: string;
+  engagement_type: "stakeholder_meeting" | "policy_dialogue" | "advocacy_action" | "coordination_forum" | "consultation" | "other";
+  engagement_date: string;
+  location: string | null;
+  region: string | null;
+  zone: string | null;
+  partner_id: string | null;
+  participants_count: number;
+  female_count: number;
+  policy_theme: string | null;
+  influence_level: string;
+  objectives: string | null;
+  key_outcomes: string | null;
+  commitments: string | null;
+  status: "planned" | "held" | "cancelled" | "followed_up";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndicatorValueRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  indicator_id: string;
+  period_label: string;
+  period_start: string | null;
+  period_end: string | null;
+  region: string | null;
+  zone: string | null;
+  actual_value: number;
+  value_male: number | null;
+  value_female: number | null;
+  value_youth: number | null;
+  value_disability: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndicatorRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  code: string;
+  name: string;
+  description: string | null;
+  level: "output" | "outcome" | "impact";
+  unit: string;
+  baseline_value: number;
+  target_value: number;
+  target_date: string | null;
+  frequency: "monthly" | "quarterly" | "biannual" | "annual";
+  region: string | null;
+  responsible: string | null;
+  status: "active" | "paused" | "retired";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeResourceRow {
+  id: string;
+  organization_id: string | null;
+  title: string;
+  resource_type: string;
+  summary: string | null;
+  author: string | null;
+  external_url: string | null;
+  publication_date: string | null;
+  tags: string[];
+  visibility: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LearningAgendaItemRow {
+  id: string;
+  organization_id: string | null;
+  question: string;
+  rationale: string | null;
+  theme: string;
+  method: string | null;
+  owner: string | null;
+  status: string;
+  progress_percent: number;
+  due_date: string | null;
+  findings: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LessonsLearnedRow {
+  id: string;
+  organization_id: string | null;
+  title: string;
+  category: string;
+  source: string;
+  context: string | null;
+  lesson: string;
+  recommendation: string | null;
+  action_taken: string | null;
+  status: string;
+  priority: string;
+  region: string | null;
+  tags: string[];
+  date_identified: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoanApplicationRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  provider_id: string | null;
+  participant_id: string | null;
+  enterprise_id: string | null;
+  product_type: string;
+  amount_requested: number;
+  amount_approved: number | null;
+  currency: string;
+  interest_rate: number | null;
+  term_months: number | null;
+  purpose: string | null;
+  application_date: string;
+  decision_date: string | null;
+  status: "applied" | "under_review" | "approved" | "rejected" | "disbursed" | "repaying" | "closed" | "defaulted";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoanDisbursementRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  application_id: string;
+  amount: number;
+  currency: string;
+  disbursed_on: string;
+  channel: string | null;
+  reference: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LoanRepaymentRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  application_id: string;
+  amount: number;
+  currency: string;
+  paid_on: string;
+  method: string | null;
+  reference: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationRow {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParticipantRow {
+  id: string;
+  created_by: string;
+  participant_id: string;
+  full_name: string;
+  date_of_birth: string | null;
+  sex: "male" | "female" | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  phone: string | null;
+  email: string | null;
+  disability: boolean | null;
+  notes: string | null;
+  status: "active" | "graduated" | "dropped" | "inactive";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+  enterprise_id: string | null;
+  education_level: string | null;
+  marital_status: string | null;
+  disability_type: string | null;
+  household_size: number | null;
+  is_youth: boolean;
+  vulnerability_category: string | null;
+  consent_given: boolean;
+  consent_date: string | null;
+  consent_version: string | null;
+  consent_withdrawn_at: string | null;
+  data_retention_until: string | null;
+}
+
+export interface PartnershipRow {
+  id: string;
+  created_by: string;
+  partner_name: string;
+  partner_type: "government" | "ngo" | "private_sector" | "cso" | "media" | "other" | null;
+  agreement_type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  region: string | null;
+  zone: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  status: "active" | "pending" | "completed" | "terminated";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface ProfileRow {
+  id: string;
+  full_name: string | null;
+  email: string;
+  phone: string | null;
+  organization: string | null;
+  position: string | null;
+  locale: string | null;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface ReflectionMeetingRow {
+  id: string;
+  organization_id: string | null;
+  title: string;
+  meeting_type: string;
+  meeting_date: string;
+  location: string | null;
+  participants_count: number;
+  female_count: number;
+  key_discussion: string | null;
+  decisions: string | null;
+  action_points: string | null;
+  follow_up_status: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SafeguardingCaseRow {
+  id: string;
+  created_by: string;
+  reporter_id: string | null;
+  case_type: "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other";
+  status: "open" | "investigating" | "closed" | "referred";
+  reported_date: string;
+  incident_date: string | null;
+  description: string | null;
+  actions_taken: string | null;
+  confidential_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface SavingsRecordRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  participant_id: string | null;
+  group_name: string | null;
+  member_since: string | null;
+  savings_balance: number;
+  total_deposits: number;
+  total_withdrawals: number;
+  currency: string;
+  contribution_cycle: string | null;
+  status: "active" | "dormant" | "closed";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyAnswerRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  response_id: string;
+  question_id: string;
+  value_text: string | null;
+  value_number: number | null;
+  value_options: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyQuestionRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  template_id: string;
+  code: string;
+  label: string;
+  help_text: string | null;
+  question_type: string;
+  options: string[];
+  is_required: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyResponseRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  template_id: string;
+  participant_id: string | null;
+  enterprise_id: string | null;
+  respondent_name: string | null;
+  respondent_sex: "male" | "female" | null;
+  age_group: string | null;
+  is_youth: boolean;
+  disability: boolean;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  collected_on: string;
+  enumerator: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SurveyTemplateRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  title: string;
+  description: string | null;
+  survey_round: string;
+  theme: string | null;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  target_sample: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingAttendanceRow {
+  id: string;
+  created_by: string;
+  training_event_id: string;
+  participant_id: string;
+  attendance_date: string;
+  status: "present" | "absent" | "excused";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface TrainingCertificateRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  training_event_id: string;
+  participant_id: string;
+  certificate_number: string;
+  issued_on: string;
+  issued_by: string | null;
+  competency: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingEventRow {
+  id: string;
+  created_by: string;
+  title: string;
+  training_type: "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other" | null;
+  start_date: string | null;
+  end_date: string | null;
+  location: string | null;
+  trainer: string | null;
+  partner_id: string | null;
+  target_participants: number | null;
+  status: "planned" | "ongoing" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface UserRoleRow {
+  id: string;
+  user_id: string;
+  role: "super_admin" | "programme_manager" | "monitoring_officer" | "partner_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+}
+
+export interface UserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  full_name: string | null;
+  email_confirmed_at: string | null;
+  disabled: boolean;
+  last_sign_in_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkplanActivityRow {
+  id: string;
+  created_by: string;
+  organization_id: string | null;
+  indicator_id: string | null;
+  title: string;
+  description: string | null;
+  region: string | null;
+  zone: string | null;
+  responsible: string | null;
+  planned_start: string | null;
+  planned_end: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  progress_percent: number;
+  status: "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+}
