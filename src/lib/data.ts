@@ -31,23 +31,53 @@ export const getDashboardStats = () => api.get<DashboardStats>("/dashboard/stats
 
 /* ------------------------------ participants ----------------------------- */
 
+/**
+ * Mirrors the backend's participantSchema (participants.schemas.ts). The API
+ * requires full_name, date_of_birth, sex, woreda and phone, plus at least one of
+ * national_id / kebele_id; participant_id is generated server-side when omitted.
+ */
 export interface ParticipantInput {
-  participant_id: string;
+  participant_id?: string;
   full_name: string;
-  date_of_birth?: string;
-  sex?: "male" | "female";
+  /** Exactly 12 characters when given. */
+  national_id?: string;
+  kebele_id?: string;
+  /** YYYY-MM-DD, not in the future. */
+  date_of_birth: string;
+  sex: "male" | "female";
   region?: string;
   zone?: string;
-  woreda?: string;
+  woreda: string;
   kebele?: string;
-  phone?: string;
+  /** +251 or 0, then 7 or 9, then 8 digits. */
+  phone: string;
+  email?: string;
   disability?: boolean;
   disability_type?: string;
-  status?: "active" | "graduated" | "dropped" | "inactive";
+  education_level?: string;
+  marital_status?: string;
+  family_size?: number;
+  vulnerability_category?: string;
+  /** The API accepts only these two on create. */
+  status?: "active" | "inactive";
   consent_given?: boolean;
   consent_version?: string;
   notes?: string;
 }
+
+export interface DuplicateCheck {
+  national_id?: string;
+  kebele_id?: string;
+  phone?: string;
+  full_name?: string;
+  date_of_birth?: string;
+}
+
+export const checkParticipantDuplicate = (input: DuplicateCheck) =>
+  api.post<{ isDuplicate: boolean; match?: { id: string; participant_id: string; full_name: string } | null }>(
+    "/participants/check-duplicate",
+    input,
+  );
 
 export const listParticipants = () => api.get<ParticipantRow[]>("/participants");
 

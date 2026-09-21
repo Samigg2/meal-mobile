@@ -1,11 +1,13 @@
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { Loading } from "@/components/ui";
 import { colors } from "@/lib/theme";
 
 export default function TabsLayout() {
   const { ready, user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (!ready) return <Loading label="Starting…" />;
   if (!user) return <Redirect href="/sign-in" />;
@@ -16,7 +18,18 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         headerStyle: { backgroundColor: colors.card },
-        headerTitleStyle: { color: colors.text, fontSize: 16 },
+        headerShadowVisible: false,
+        headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "700" },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          // A fixed height replaces the default safe-area padding, so add the
+          // device's bottom inset back or the bar sits under the system buttons.
+          height: 60 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: 6 + insets.bottom,
+        },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
