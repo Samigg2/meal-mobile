@@ -146,6 +146,21 @@ export function isGlobalRole(roles: AppRole[]): boolean {
   return roles.some((r) => GLOBAL_ROLES.includes(r));
 }
 
+// The server's overrides for this user's cluster (cluster over programme-wide,
+// already merged), layered on the built-in table. Empty until loaded, and kept
+// as-is offline, so the last known matrix keeps applying. UI hiding only.
+let overrides = new Map<string, boolean>();
+
+export function setPermissionOverrides(
+  rows: { role: AppRole; module: PermissionModule; action: string; allowed: boolean }[],
+): void {
+  overrides = new Map(rows.map((r) => [`${r.role}|${r.module}|${r.action}`, r.allowed]));
+}
+
+/** Cells nobody can change: a super admin, and a programme manager's Administration. */
+const isLockedCell = (role: AppRole, module: PermissionModule) =>
+  role === "super_admin" || (role === "programme_manager" && module === "admin");
+
 export function hasPermission(
   roles: AppRole[],
   module: PermissionModule,
@@ -154,9 +169,12 @@ export function hasPermission(
   if (roles.includes("super_admin")) return true;
   const entry = MATRIX[module];
   if (!entry) return false;
-  // Only super admins may delete arbitrary records; writers may delete their own.
-  if (action === "delete") return entry.write.some((r) => roles.includes(r));
-  return entry[action].some((r) => roles.includes(r));
+  return roles.some((role) => {
+    // Only super admins may delete arbitrary records; writers may delete their own.
+    const builtIn = (action === "delete" ? entry.write : entry[action]).includes(role);
+    if (isLockedCell(role, module)) return builtIn;
+    return overrides.get(`${role}|${module}|${action}`) ?? builtIn;
+  });
 }
 
 export const MODULE_LABELS: Record<PermissionModule, string> = {

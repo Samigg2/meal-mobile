@@ -11,7 +11,13 @@ import {
   type SessionUser,
 } from "./api";
 import type { AppRole, ProfileRow } from "./types";
-import { hasPermission, isGlobalRole, type PermissionAction, type PermissionModule } from "./permissions";
+import {
+  hasPermission,
+  isGlobalRole,
+  setPermissionOverrides,
+  type PermissionAction,
+  type PermissionModule,
+} from "./permissions";
 
 interface AuthState {
   user: SessionUser | null;
@@ -35,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [ready, setReady] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  // Bumped when the permission overrides change, so `can` is recomputed.
+  const [permissionsVersion, setPermissionsVersion] = useState(0);
 
   const fetchProfile = useCallback(async () => {
     setLoadingProfile(true);
@@ -42,6 +50,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await api.get<{ profile: ProfileRow; roles: AppRole[] }>("/auth/me");
       setProfile(data.profile);
       setRoles(data.roles);
+      try {
+        const { overrides } = await api.get<{
+          overrides: { role: AppRole; module: PermissionModule; action: string; allowed: boolean }[];
+        }>("/admin/permissions/effective");
+        setPermissionOverrides(overrides);
+        setPermissionsVersion((v) => v + 1);
+      } catch {
+        // Keep whatever matrix was last loaded (the built-in one on a first run).
+      }
     } catch {
       // Offline start-up keeps the stored session; roles arrive on next connect.
     } finally {
@@ -100,7 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can = useCallback(
     (module: PermissionModule, action: PermissionAction = "read") => hasPermission(roles, module, action),
-    [roles],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roles, permissionsVersion],
   );
 
   const value = useMemo(
