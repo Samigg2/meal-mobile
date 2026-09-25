@@ -2,9 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
+import { useFonts } from "expo-font";
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+} from "@expo-google-fonts/plus-jakarta-sans";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/lib/auth";
-import { colors } from "@/lib/theme";
+import { Loading } from "@/components/ui";
+import { colors, fontFamilies } from "@/theme";
 
 export default function RootLayout() {
   // Field devices are often on slow or intermittent connections: keep data a
@@ -16,6 +25,16 @@ export default function RootLayout() {
       }),
   );
 
+  // Plus Jakarta Sans. If it cannot load, the app carries on in the system font.
+  const [fontsLoaded, fontError] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
+  });
+  if (!fontsLoaded && !fontError) return <Loading label="Starting…" />;
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
@@ -25,7 +44,7 @@ export default function RootLayout() {
             screenOptions={{
               headerStyle: { backgroundColor: colors.card },
               headerShadowVisible: false,
-              headerTitleStyle: { color: colors.text, fontSize: 17, fontWeight: "700" },
+              headerTitleStyle: { color: colors.text, fontSize: 17, fontFamily: fontFamilies["700"] },
               headerTintColor: colors.primary,
               contentStyle: { backgroundColor: colors.background },
             }}
@@ -37,6 +56,7 @@ export default function RootLayout() {
             <Stack.Screen name="participants/[id]" options={{ title: "Participant" }} />
             <Stack.Screen name="surveys/[id]" options={{ title: "Collect response" }} />
             <Stack.Screen name="sync" options={{ title: "Offline queue" }} />
+            <Stack.Screen name="access" options={{ title: "Your access" }} />
           </Stack>
         </AuthProvider>
       </SafeAreaProvider>

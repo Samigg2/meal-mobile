@@ -1,9 +1,13 @@
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { CircleAlert, ShieldCheck } from "lucide-react-native";
 import { getParticipantDetail } from "@/lib/data";
-import { Badge, Card, EmptyState, Loading } from "@/components/ui";
-import { colors, spacing } from "@/lib/theme";
+import { initialsOf } from "@/lib/user";
+import { Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
+import { colors, spacing, topics } from "@/theme";
+
+const capital = (s?: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null);
 
 export default function ParticipantDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,7 +17,7 @@ export default function ParticipantDetail() {
     enabled: !!id,
   });
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <ListSkeleton rows={3} />;
   if (isError || !data) {
     return (
       <EmptyState
@@ -24,6 +28,8 @@ export default function ParticipantDetail() {
   }
 
   const { participant, enterprise, trainings } = data;
+  const female = participant.sex === "female";
+  const t = female ? topics.female : topics.participants;
   const location = [participant.kebele, participant.woreda, participant.zone, participant.region]
     .filter(Boolean)
     .join(", ");
@@ -35,27 +41,33 @@ export default function ParticipantDetail() {
         <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />
       }
     >
-      <Card style={styles.card}>
+      <Card style={styles.header}>
+        <View style={[styles.avatar, { backgroundColor: t.tint }]}>
+          <Text style={[styles.avatarText, { color: t.color }]}>{initialsOf(participant.full_name)}</Text>
+        </View>
         <Text style={styles.name}>{participant.full_name}</Text>
-        <Text style={styles.meta}>{participant.participant_id}</Text>
-        <View style={styles.badgeRow}>
-          <Badge text={participant.status} tone={participant.status === "active" ? "success" : "neutral"} />
-          {participant.is_youth ? <Badge text="Youth" /> : null}
-          {participant.disability ? <Badge text={participant.disability_type ?? "Disability"} tone="warning" /> : null}
-          <Badge
-            text={participant.consent_given ? "Consent on file" : "No consent"}
-            tone={participant.consent_given ? "success" : "danger"}
-          />
+        <Text style={styles.id}>{participant.participant_id}</Text>
+        <View style={styles.pills}>
+          <StatusPill label={participant.status} tone={participant.status === "active" ? "green" : "grey"} />
+          {participant.is_youth ? <StatusPill label="Youth" tone="blue" /> : null}
+          {participant.disability ? (
+            <StatusPill label={participant.disability_type ?? "Disability"} tone="violet" />
+          ) : null}
+          {participant.consent_given ? (
+            <StatusPill label="Consent on file" tone="green" icon={ShieldCheck} />
+          ) : (
+            <StatusPill label="No consent" tone="red" icon={CircleAlert} outline />
+          )}
         </View>
       </Card>
 
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
-        <Row label="Sex" value={participant.sex} />
+        <Row label="Sex" value={capital(participant.sex)} />
         <Row label="Date of birth" value={participant.date_of_birth} />
         <Row label="Phone" value={participant.phone} />
-        <Row label="Education" value={participant.education_level} />
-        <Row label="Location" value={location} />
+        <Row label="Education" value={capital(participant.education_level)} />
+        <Row label="Location" value={location} last />
       </Card>
 
       <Card style={styles.card}>
@@ -64,7 +76,10 @@ export default function ParticipantDetail() {
           <>
             <Text style={styles.value}>{enterprise.enterprise_name}</Text>
             <Text style={styles.meta}>
-              {[enterprise.enterprise_type, enterprise.sector, enterprise.status].filter(Boolean).join(" · ")}
+              {[enterprise.enterprise_type, enterprise.sector, enterprise.status]
+                .filter(Boolean)
+                .map((x) => capital(String(x)))
+                .join(" · ")}
             </Text>
           </>
         ) : (
@@ -77,13 +92,14 @@ export default function ParticipantDetail() {
         {trainings.length === 0 ? (
           <Text style={styles.meta}>No training attendance recorded.</Text>
         ) : (
-          trainings.map((row) => (
-            <View key={row.id} style={styles.trainingRow}>
+          trainings.map((row, i) => (
+            <View key={row.id} style={[styles.trainingRow, i > 0 && styles.divider]}>
               <View style={styles.flex}>
                 <Text style={styles.value}>{row.training_events?.title ?? "Training"}</Text>
                 <Text style={styles.meta}>{row.attendance_date}</Text>
               </View>
-              <Badge text={row.status} tone={row.status === "present" ? "success" : "neutral"} />
+              {/* The attendance list carries no status of its own: a row means the person attended. */}
+              <StatusPill label={row.status ?? "present"} tone={!row.status || row.status === "present" ? "green" : "grey"} />
             </View>
           ))
         )}
@@ -92,9 +108,9 @@ export default function ParticipantDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
+function Row({ label, value, last }: { label: string; value?: string | null; last?: boolean }) {
   return (
-    <View style={styles.detailRow}>
+    <View style={[styles.detailRow, !last && styles.divider]}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={styles.detailValue}>{value || "—"}</Text>
     </View>
@@ -104,14 +120,19 @@ function Row({ label, value }: { label: string; value?: string | null }) {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   flex: { flex: 1 },
+  header: { alignItems: "center", gap: 4 },
+  avatar: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+  avatarText: { fontSize: 22, fontWeight: "700" },
+  name: { fontSize: 20, fontWeight: "700", color: colors.text, textAlign: "center" },
+  id: { fontSize: 13, color: colors.muted },
+  pills: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.sm },
   card: { gap: spacing.sm },
-  name: { fontSize: 19, fontWeight: "700", color: colors.text },
-  meta: { fontSize: 12, color: colors.muted },
-  value: { fontSize: 14, color: colors.text, fontWeight: "500", textTransform: "capitalize" },
-  badgeRow: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", marginTop: spacing.xs },
-  sectionTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
-  detailRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, paddingVertical: 3 },
+  meta: { fontSize: 13, color: colors.muted },
+  value: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, paddingVertical: 10, minHeight: 44 },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   detailLabel: { fontSize: 13, color: colors.muted },
-  detailValue: { fontSize: 13, color: colors.text, fontWeight: "500", flexShrink: 1, textAlign: "right", textTransform: "capitalize" },
-  trainingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  detailValue: { fontSize: 14, color: colors.text, fontWeight: "600", flexShrink: 1, textAlign: "right" },
+  trainingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
 });

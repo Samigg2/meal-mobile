@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { CircleCheck, Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,7 +9,7 @@ import {
   type ParticipantInput,
 } from "@/lib/data";
 import { enqueue, shouldQueue } from "@/lib/queue";
-import { Button, Card, ChoiceRow, ErrorText, Field, Section, Select, Toggle } from "@/components/ui";
+import { Button, Card, ChoiceRow, ErrorText, Field, Section, Select, StickyFooter, Text, Toggle } from "@/components/ui";
 import { colors, radius, spacing } from "@/lib/theme";
 
 /**
@@ -260,7 +261,7 @@ export default function NewParticipant() {
       <View style={styles.noticeWrap}>
         <Card style={styles.notice}>
           <View style={styles.noticeIcon}>
-            <Text style={styles.noticeIconText}>✓</Text>
+            <CircleCheck size={30} color={colors.success} strokeWidth={2.4} />
           </View>
           <Text style={styles.noticeTitle}>Saved on this device</Text>
           <Text style={styles.noticeText}>{notice}</Text>
@@ -283,7 +284,7 @@ export default function NewParticipant() {
       <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <ErrorText>{errors.form}</ErrorText>
 
-        <Section title="Identification" icon="id-card-outline" description="A National ID or a Kebele ID is required.">
+        <Section title="Identification" icon={IdCard} description="A National ID or a Kebele ID is required.">
           <Field
             label="Full name"
             required
@@ -313,7 +314,7 @@ export default function NewParticipant() {
           />
         </Section>
 
-        <Section title="Personal details" icon="person-outline">
+        <Section title="Personal details" icon={User}>
           <Field
             label="Date of birth"
             required
@@ -377,7 +378,7 @@ export default function NewParticipant() {
           />
         </Section>
 
-        <Section title="Location" icon="location-outline">
+        <Section title="Location" icon={MapPin}>
           <Field label="Region" value={form.region} onChangeText={(v) => update("region", v)} autoCapitalize="words" />
           <Field label="Zone" value={form.zone} onChangeText={(v) => update("zone", v)} autoCapitalize="words" />
           <Field
@@ -391,7 +392,7 @@ export default function NewParticipant() {
           <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
         </Section>
 
-        <Section title="Inclusion" icon="heart-outline">
+        <Section title="Inclusion" icon={Heart}>
           <Select
             label="Vulnerability category"
             value={form.vulnerability_category}
@@ -433,7 +434,7 @@ export default function NewParticipant() {
           ) : null}
         </Section>
 
-        <Section title="Consent and notes" icon="shield-checkmark-outline">
+        <Section title="Consent and notes" icon={ShieldCheck}>
           <Text style={styles.consentNote}>
             {"Personal data is collected under Ethiopia's Personal Data Protection Proclamation No. 1321/2024. " +
               "Record consent only after explaining how the data will be used. A seven-year retention date is set automatically."}
@@ -452,15 +453,17 @@ export default function NewParticipant() {
           />
         </Section>
 
-        <Button title="Register participant" onPress={handleSave} loading={saving} />
       </ScrollView>
+      <StickyFooter>
+        <Button title="Register participant" onPress={handleSave} loading={saving} />
+      </StickyFooter>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
-  container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl * 2 },
+  container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
   consentNote: { fontSize: 12, color: colors.muted, lineHeight: 18 },
   noticeWrap: { flex: 1, justifyContent: "center", padding: spacing.lg, backgroundColor: colors.background },
   notice: { gap: spacing.md, alignItems: "stretch" },

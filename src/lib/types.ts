@@ -12,7 +12,7 @@ export type ActionPriority = "low" | "medium" | "high" | "critical";
 export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other";
 export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled";
 export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
-export type AppRole = "super_admin" | "programme_manager" | "monitoring_officer" | "partner_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+export type AppRole = "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
 export type AttendanceStatus = "present" | "absent" | "excused";
 export type EmploymentStatus = "placed" | "retained" | "exited" | "verified" | "pending_verification";
 export type EmploymentType = "wage_employment" | "self_employment" | "apprenticeship" | "internship" | "contract";
@@ -21,8 +21,6 @@ export type EnterpriseType = "trade" | "service" | "manufacturing" | "agricultur
 export type FeedbackSource = "helpline" | "suggestion_box" | "meeting" | "survey" | "other";
 export type FeedbackStatus = "new" | "in_review" | "resolved" | "closed";
 export type FeedbackType = "complaint" | "suggestion" | "compliment" | "query";
-export type FinanceRecordType = "grant" | "disbursement" | "expense" | "reimbursement";
-export type FinanceStatus = "planned" | "committed" | "disbursed" | "reconciled" | "cancelled";
 export type FspType = "bank" | "microfinance" | "cooperative" | "saving_group" | "fintech" | "other";
 export type GovernanceEngagementType = "stakeholder_meeting" | "policy_dialogue" | "advocacy_action" | "coordination_forum" | "consultation" | "other";
 export type GovernanceStatus = "planned" | "held" | "cancelled" | "followed_up";
@@ -59,6 +57,7 @@ export interface ActionItemRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
 }
 
 export interface AttachmentRow {
@@ -89,6 +88,23 @@ export interface AuditLogRow {
   created_at: string;
 }
 
+export interface CustomFieldDefRow {
+  id: string;
+  organization_id: string;
+  spec_key: string;
+  name: string;
+  label: string;
+  type: string;
+  lookup: string | null;
+  options: Record<string, unknown> | null;
+  required: boolean;
+  sort_order: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EmploymentPlacementRow {
   id: string;
   created_by: string;
@@ -104,12 +120,64 @@ export interface EmploymentPlacementRow {
   monthly_income: number | null;
   currency: string;
   contract_type: string | null;
-  is_formal: boolean;
   status: "placed" | "retained" | "exited" | "verified" | "pending_verification";
   verified_on: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  custom: Record<string, unknown>;
+}
+
+export interface EmpowermentParticipantRow {
+  id: string;
+  organization_id: string | null;
+  record_id: string;
+  participant_id: string;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface EmpowermentRecordRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  programme_area: string;
+  activity_type: string;
+  activity_date: string;
+  facilitator: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  outcome_description: string | null;
+  change_observed: string | null;
+  follow_up_required: boolean | null;
+  follow_up_notes: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  participant_id: string | null;
+  group_size: number;
+  custom: Record<string, unknown>;
+  enterprise_id: string | null;
+  confidence_score_before: number | null;
+  confidence_score_after: number | null;
+  referral_pathway: string | null;
+  is_safe_space_session: boolean;
+  kebele: string | null;
+  count_age_15_19: number | null;
+  count_age_20_24: number | null;
+  count_age_25_34: number | null;
+  count_with_disability: number | null;
+  linkage_type: string;
+  network_name: string | null;
+  facilitator_institution_id: string | null;
+  outcome_tags: string[];
+  change_tags: string[];
+  network_id: string | null;
 }
 
 export interface EnterpriseRow {
@@ -118,7 +186,6 @@ export interface EnterpriseRow {
   enterprise_name: string;
   owner_name: string | null;
   enterprise_type: "trade" | "service" | "manufacturing" | "agriculture" | "technology" | "other" | null;
-  sector: string | null;
   region: string | null;
   zone: string | null;
   woreda: string | null;
@@ -129,12 +196,20 @@ export interface EnterpriseRow {
   established_date: string | null;
   employees_male: number | null;
   employees_female: number | null;
-  employees_youth: number | null;
   status: "active" | "inactive" | "graduated" | "dropped";
   created_at: string;
   updated_at: string;
   organization_id: string | null;
   owner_participant_id: string | null;
+  annual_revenue: number | null;
+  annual_profit: number | null;
+  revenue_currency: string | null;
+  last_revenue_date: string | null;
+  employee_count: number | null;
+  tin_number: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  custom: Record<string, unknown>;
 }
 
 export interface FeedbackRow {
@@ -152,21 +227,7 @@ export interface FeedbackRow {
   reporter_contact: string | null;
   is_public_submission: boolean;
   reference_code: string | null;
-}
-
-export interface FinanceRecordRow {
-  id: string;
-  created_by: string;
-  record_type: "grant" | "disbursement" | "expense" | "reimbursement";
-  amount: number;
-  currency: string;
-  partner_id: string | null;
-  description: string | null;
-  period: string | null;
-  status: "planned" | "committed" | "disbursed" | "reconciled" | "cancelled";
-  created_at: string;
-  updated_at: string;
-  organization_id: string | null;
+  custom: Record<string, unknown>;
 }
 
 export interface FinancialServiceProviderRow {
@@ -180,10 +241,25 @@ export interface FinancialServiceProviderRow {
   contact_person: string | null;
   contact_phone: string | null;
   contact_email: string | null;
-  products: string | null;
   status: string;
   created_at: string;
   updated_at: string;
+  woreda: string | null;
+  kebele: string | null;
+  custom: Record<string, unknown>;
+  products_offered: string[];
+  offers_youth_products: boolean;
+  offers_women_products: boolean;
+  other_provider_type: string | null;
+}
+
+export interface GovernanceAttendeeRow {
+  id: string;
+  organization_id: string | null;
+  engagement_id: string;
+  partner_id: string;
+  representatives_count: number;
+  created_at: string;
 }
 
 export interface GovernanceEngagementRow {
@@ -196,17 +272,21 @@ export interface GovernanceEngagementRow {
   location: string | null;
   region: string | null;
   zone: string | null;
-  partner_id: string | null;
-  participants_count: number;
-  female_count: number;
   policy_theme: string | null;
   influence_level: string;
   objectives: string | null;
   key_outcomes: string | null;
   commitments: string | null;
-  status: "planned" | "held" | "cancelled" | "followed_up";
+  status: string;
   created_at: string;
   updated_at: string;
+  participants_count: number;
+  female_count: number;
+  custom: Record<string, unknown>;
+  institution_id: string | null;
+  partner_id: string | null;
+  woreda: string | null;
+  kebele: string | null;
 }
 
 export interface IndicatorValueRow {
@@ -247,6 +327,32 @@ export interface IndicatorRow {
   status: "active" | "paused" | "retired";
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
+}
+
+export interface InstitutionRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  institution_name: string;
+  institution_type: string;
+  level: string;
+  mandate: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  capacity_level: string;
+  capacity_support_provided: boolean;
+  capacity_support_description: string | null;
+  partner_id: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface KnowledgeResourceRow {
@@ -263,6 +369,7 @@ export interface KnowledgeResourceRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
 }
 
 export interface LearningAgendaItemRow {
@@ -280,6 +387,7 @@ export interface LearningAgendaItemRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
 }
 
 export interface LessonsLearnedRow {
@@ -300,6 +408,7 @@ export interface LessonsLearnedRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
 }
 
 export interface LoanApplicationRow {
@@ -322,6 +431,7 @@ export interface LoanApplicationRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  ysla_group_id: string | null;
 }
 
 export interface LoanDisbursementRow {
@@ -354,6 +464,46 @@ export interface LoanRepaymentRow {
   updated_at: string;
 }
 
+export interface LookupValueRow {
+  id: string;
+  category: string;
+  code: string;
+  label: string;
+  parent_id: string | null;
+  sort_order: number;
+  active: boolean;
+  organization_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterialSupportRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  participant_id: string | null;
+  enterprise_id: string | null;
+  support_type: string;
+  item_description: string;
+  quantity: number;
+  unit: string | null;
+  unit_value: number | null;
+  currency: string;
+  distribution_date: string;
+  condition: string;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  partner_id: string | null;
+  other_support_type: string | null;
+  is_returnable: boolean;
+  status_date: string | null;
+  other_unit: string | null;
+  custom: Record<string, unknown>;
+}
+
 export interface OrganizationRow {
   id: string;
   name: string;
@@ -361,6 +511,7 @@ export interface OrganizationRow {
   description: string | null;
   created_at: string;
   updated_at: string;
+  region: string | null;
 }
 
 export interface ParticipantRow {
@@ -368,6 +519,7 @@ export interface ParticipantRow {
   created_by: string;
   participant_id: string;
   full_name: string;
+  national_id: string | null;
   date_of_birth: string | null;
   sex: "male" | "female" | null;
   region: string | null;
@@ -386,7 +538,7 @@ export interface ParticipantRow {
   education_level: string | null;
   marital_status: string | null;
   disability_type: string | null;
-  household_size: number | null;
+  family_size: number | null;
   is_youth: boolean;
   vulnerability_category: string | null;
   consent_given: boolean;
@@ -394,13 +546,19 @@ export interface ParticipantRow {
   consent_version: string | null;
   consent_withdrawn_at: string | null;
   data_retention_until: string | null;
+  kebele_id: string | null;
+  custom: Record<string, unknown>;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
 }
 
 export interface PartnershipRow {
   id: string;
   created_by: string;
   partner_name: string;
-  partner_type: "government" | "ngo" | "private_sector" | "cso" | "media" | "other" | null;
+  partner_type: string | null;
   agreement_type: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -413,6 +571,18 @@ export interface PartnershipRow {
   created_at: string;
   updated_at: string;
   organization_id: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  custom: Record<string, unknown>;
+  institution_id: string | null;
+  sector_focus: string | null;
+  geographic_scope: string | null;
+  partnership_objective: string | null;
+  financial_contribution_amount: number | null;
+  in_kind_contribution: string | null;
+  renewal_date: string | null;
+  in_kind_contribution_value: number | null;
+  institutional_strengthening_support: boolean;
 }
 
 export interface ProfileRow {
@@ -444,6 +614,19 @@ export interface ReflectionMeetingRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
+}
+
+export interface RolePermissionRow {
+  id: string;
+  organization_id: string | null;
+  role: "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+  module: string;
+  action: string;
+  allowed: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SafeguardingCaseRow {
@@ -460,21 +643,62 @@ export interface SafeguardingCaseRow {
   created_at: string;
   updated_at: string;
   organization_id: string | null;
+  custom: Record<string, unknown>;
 }
 
-export interface SavingsRecordRow {
+export interface SbccActivityRow {
   id: string;
-  created_by: string;
   organization_id: string | null;
-  participant_id: string | null;
-  group_name: string | null;
-  member_since: string | null;
-  savings_balance: number;
-  total_deposits: number;
-  total_withdrawals: number;
-  currency: string;
-  contribution_cycle: string | null;
-  status: "active" | "dormant" | "closed";
+  created_by: string | null;
+  campaign_name: string;
+  activity_type: string;
+  behaviour_theme: string;
+  activity_date: string;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  reach_male: number | null;
+  reach_female: number | null;
+  reach_youth: number | null;
+  materials_distributed: number | null;
+  material_type: string | null;
+  channel: string | null;
+  key_messages: string | null;
+  observed_behaviour_change: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  custom: Record<string, unknown>;
+  target_audience: string;
+  end_date: string | null;
+  partner_id: string | null;
+  institution_id: string | null;
+  knowledge_change_pct: number | null;
+  behavior_change_pct: number | null;
+  evaluation_method: string;
+  kebele: string | null;
+  reach_total: number | null;
+  reach_female_youth: number | null;
+  reach_male_youth: number | null;
+  reach_basis: string;
+  evaluation_sample_size: number | null;
+}
+
+export interface SupportNetworkRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  network_name: string;
+  network_type: string;
+  description: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  contact_phone: string | null;
+  institution_id: string | null;
+  status: string;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -546,6 +770,33 @@ export interface SurveyTemplateRow {
   target_sample: number;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
+}
+
+export interface TrainerRow {
+  id: string;
+  created_by: string;
+  name: string;
+  phone: string | null;
+  partner_id: string | null;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
+}
+
+export interface TrainingAssessmentRow {
+  id: string;
+  created_by: string;
+  training_event_id: string;
+  participant_id: string;
+  score: number | null;
+  passed: boolean;
+  assessed_on: string;
+  assessed_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
 }
 
 export interface TrainingAttendanceRow {
@@ -554,7 +805,6 @@ export interface TrainingAttendanceRow {
   training_event_id: string;
   participant_id: string;
   attendance_date: string;
-  status: "present" | "absent" | "excused";
   created_at: string;
   updated_at: string;
   organization_id: string | null;
@@ -574,6 +824,17 @@ export interface TrainingCertificateRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  revocation_reason: string | null;
+}
+
+export interface TrainingEnrollmentRow {
+  id: string;
+  created_by: string;
+  training_event_id: string;
+  participant_id: string;
+  created_at: string;
+  updated_at: string;
+  organization_id: string | null;
 }
 
 export interface TrainingEventRow {
@@ -583,20 +844,25 @@ export interface TrainingEventRow {
   training_type: "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other" | null;
   start_date: string | null;
   end_date: string | null;
-  location: string | null;
-  trainer: string | null;
   partner_id: string | null;
   target_participants: number | null;
   status: "planned" | "ongoing" | "completed" | "cancelled";
   created_at: string;
   updated_at: string;
   organization_id: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  other_training_type: string | null;
+  trainer_id: string | null;
+  kebele: string | null;
+  custom: Record<string, unknown>;
 }
 
 export interface UserRoleRow {
   id: string;
   user_id: string;
-  role: "super_admin" | "programme_manager" | "monitoring_officer" | "partner_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+  role: "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
 }
 
 export interface UserRow {
@@ -629,4 +895,52 @@ export interface WorkplanActivityRow {
   status: "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
+}
+
+export interface YslaGroupMemberRow {
+  id: string;
+  organization_id: string | null;
+  group_id: string;
+  participant_id: string;
+  joined_date: string;
+  created_at: string;
+  created_by: string | null;
+  role: string;
+  individual_savings_balance: number;
+  individual_loans_outstanding: number;
+  status: string;
+  exit_date: string | null;
+  updated_at: string;
+}
+
+export interface YslaGroupRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  group_name: string;
+  group_type: string;
+  formation_date: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  share_value: number | null;
+  share_out_date: string | null;
+  meeting_frequency: string | null;
+  total_savings: number | null;
+  total_loans: number | null;
+  loan_repayment_rate: number | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  members_total: number;
+  members_female: number;
+  members_youth: number;
+  custom: Record<string, unknown>;
+  linked_fsp_id: string | null;
+  chairperson_id: string | null;
+  secretary_id: string | null;
+  treasurer_id: string | null;
 }

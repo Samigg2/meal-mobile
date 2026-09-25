@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ionicons } from "@expo/vector-icons";
+import { CloudCheck, CloudUpload, Trash2 } from "lucide-react-native";
 import { clearQueue, removeFromQueue, syncQueue } from "@/lib/queue";
 import { useQueue } from "@/lib/net";
-import { Badge, Button, Card, EmptyState } from "@/components/ui";
-import { colors, spacing } from "@/lib/theme";
+import { Badge, Button, Card, EmptyState, IconBox, Text } from "@/components/ui";
+import { colors, spacing } from "@/theme";
 
 export default function Sync() {
   const items = useQueue();
@@ -44,7 +44,7 @@ export default function Sync() {
     <ScrollView contentContainerStyle={styles.container}>
       <Card style={styles.card}>
         <View style={styles.headerRow}>
-          <Ionicons name="cloud-upload-outline" size={22} color={colors.primary} />
+          <IconBox icon={items.length ? CloudUpload : CloudCheck} color={items.length ? colors.warning : colors.success} tint={items.length ? colors.warningSoft : colors.successSoft} size={44} />
           <View style={styles.flex}>
             <Text style={styles.title}>
               {items.length} submission{items.length === 1 ? "" : "s"} on this device
@@ -53,12 +53,15 @@ export default function Sync() {
           </View>
         </View>
         <Button title="Sync now" onPress={handleSync} loading={syncing} disabled={items.length === 0} />
-        {items.length > 0 ? <Button title="Discard all" variant="outline" onPress={confirmClear} /> : null}
+        {items.length > 0 ? <Button title="Discard all" variant="outlineDanger" icon={Trash2} onPress={confirmClear} /> : null}
         {result ? <Text style={styles.result}>{result}</Text> : null}
       </Card>
 
       {items.length === 0 ? (
         <EmptyState
+          icon={CloudCheck}
+          color={colors.success}
+          tint={colors.successSoft}
           title="Nothing queued"
           message="Registrations and survey responses captured without a connection appear here."
         />

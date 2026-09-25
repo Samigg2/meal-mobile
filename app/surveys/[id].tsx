@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSurvey, submitSurveyResponse, type SurveyResponseInput } from "@/lib/data";
 import { enqueue, shouldQueue } from "@/lib/queue";
 import { useAuth } from "@/lib/auth";
-import { Button, Card, ChoiceRow, EmptyState, ErrorText, Field, Loading, Toggle } from "@/components/ui";
-import { colors, spacing } from "@/lib/theme";
+import { Button, Card, ChoiceRow, EmptyState, ErrorText, Field, Loading, StickyFooter, Text, Toggle } from "@/components/ui";
+import { colors, spacing } from "@/theme";
 import type { SurveyQuestionRow } from "@/lib/types";
 
 type AnswerValue = { text?: string; number?: string; options?: string[] };
@@ -237,8 +237,10 @@ export default function CollectResponse() {
         </Card>
 
         <ErrorText>{formError}</ErrorText>
-        <Button title="Submit response" onPress={handleSubmit} loading={saving} />
       </ScrollView>
+      <StickyFooter>
+        <Button title="Submit response" onPress={handleSubmit} loading={saving} />
+      </StickyFooter>
     </KeyboardAvoidingView>
   );
 }

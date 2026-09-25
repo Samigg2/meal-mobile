@@ -23,6 +23,10 @@ export interface DashboardStats {
   indicators: number;
   onTrack: number;
   atRisk: number;
+  /** Open work items the API also reports; used by the header's notifications sheet. */
+  openFeedback?: number;
+  openSafeguarding?: number;
+  openActions?: number;
   topRegions: { region: string; count: number }[];
   registrationTrend: { month: string; count: number }[];
 }
