@@ -11,6 +11,43 @@ import type { SurveyQuestionRow } from "@/lib/types";
 
 type AnswerValue = { text?: string; number?: string; options?: string[] };
 
+/** A device-made id, so the server recognises a replayed offline submission. */
+function makeRef(): string {
+  const cryptoApi = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/**
+ * Skip logic, matching the server: a question with a condition is asked only
+ * when the question it points at was asked and given that answer.
+ */
+function visibleQuestionIds(questions: SurveyQuestionRow[], answers: Record<string, AnswerValue>): Set<string> {
+  const byCode = new Map(questions.map((q) => [q.code.toLowerCase(), q]));
+  const memo = new Map<string, boolean>();
+  const words = (q: SurveyQuestionRow): string[] => {
+    const a = answers[q.id];
+    if (!a) return [];
+    if (a.options?.length) return a.options.map((o) => o.toLowerCase());
+    if (a.number) return [a.number];
+    return a.text ? [a.text.trim().toLowerCase()] : [];
+  };
+  const asked = (q: SurveyQuestionRow): boolean => {
+    if (memo.has(q.id)) return memo.get(q.id)!;
+    let result = true;
+    if (q.show_if_code) {
+      const parent = byCode.get(q.show_if_code.toLowerCase());
+      result = !!parent && asked(parent) && words(parent).includes((q.show_if_value ?? "").toLowerCase());
+    }
+    memo.set(q.id, result);
+    return result;
+  };
+  return new Set(questions.filter(asked).map((q) => q.id));
+}
+
 /**
  * Survey response capture. Answers are validated against the question spec and,
  * when the device is offline, the whole response is queued on the device.
@@ -39,6 +76,8 @@ export default function CollectResponse() {
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Kept for the life of this screen, so a retry sends the same reference.
+  const [clientRef] = useState(makeRef);
 
   if (isLoading) return <Loading />;
   if (isError || !data) {
@@ -50,7 +89,9 @@ export default function CollectResponse() {
     );
   }
 
-  const { template, questions } = data;
+  const { template, questions: allQuestions } = data;
+  const visible = visibleQuestionIds(allQuestions, answers);
+  const questions = allQuestions.filter((q) => visible.has(q.id));
 
   function setAnswer(questionId: string, value: AnswerValue) {
     setAnswers((prev) => ({ ...prev, [questionId]: { ...prev[questionId], ...value } }));
@@ -69,6 +110,14 @@ export default function CollectResponse() {
   }
 
   function buildPayload(): SurveyResponseInput | null {
+    if (!sex) {
+      setFormError("Sex is required.");
+      return null;
+    }
+    if (!region.trim()) {
+      setFormError("Region is required.");
+      return null;
+    }
     const collected: SurveyResponseInput["answers"] = [];
     for (const question of questions) {
       const value = answers[question.id] ?? {};
@@ -84,6 +133,14 @@ export default function CollectResponse() {
         setFormError(`"${question.label}" must be a number.`);
         return null;
       }
+      if (numeric !== undefined && question.min_value !== null && numeric < Number(question.min_value)) {
+        setFormError(`"${question.label}" must be at least ${question.min_value}.`);
+        return null;
+      }
+      if (numeric !== undefined && question.max_value !== null && numeric > Number(question.max_value)) {
+        setFormError(`"${question.label}" must be at most ${question.max_value}.`);
+        return null;
+      }
       if (!hasValue) continue;
 
       collected.push({
@@ -96,11 +153,12 @@ export default function CollectResponse() {
 
     return {
       template_id: template.id,
+      client_ref: clientRef,
       respondent_name: respondent || undefined,
       respondent_sex: sex,
       is_youth: isYouth,
       disability,
-      region: region || undefined,
+      region: region.trim(),
       zone: zone || undefined,
       woreda: woreda || undefined,
       collected_on: new Date().toISOString().slice(0, 10),
@@ -162,7 +220,7 @@ export default function CollectResponse() {
           <Text style={styles.sectionTitle}>Respondent</Text>
           <Field label="Name (optional)" value={respondent} onChangeText={setRespondent} autoCapitalize="words" />
           <ChoiceRow
-            label="Sex"
+            label="Sex *"
             value={sex}
             options={[
               { label: "Male", value: "male" },
@@ -172,7 +230,7 @@ export default function CollectResponse() {
           />
           <Toggle label="Youth (15–35)" value={isYouth} onChange={setIsYouth} />
           <Toggle label="Has a disability" value={disability} onChange={setDisability} />
-          <Field label="Region" value={region} onChangeText={setRegion} autoCapitalize="words" />
+          <Field label="Region *" value={region} onChangeText={setRegion} autoCapitalize="words" />
           <Field label="Zone" value={zone} onChangeText={setZone} autoCapitalize="words" />
           <Field label="Woreda" value={woreda} onChangeText={setWoreda} autoCapitalize="words" />
         </Card>

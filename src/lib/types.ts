@@ -9,7 +9,7 @@
 /* ------------------------------- enums ------------------------------- */
 
 export type ActionPriority = "low" | "medium" | "high" | "critical";
-export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other";
+export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other" | "lesson_learned";
 export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled";
 export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
 export type AppRole = "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
@@ -46,7 +46,7 @@ export interface ActionItemRow {
   organization_id: string | null;
   title: string;
   description: string | null;
-  source: "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other";
+  source: "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other" | "lesson_learned";
   source_record_id: string | null;
   owner: string | null;
   due_date: string | null;
@@ -58,6 +58,7 @@ export interface ActionItemRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  owner_id: string | null;
 }
 
 export interface AttachmentRow {
@@ -228,6 +229,19 @@ export interface FeedbackRow {
   is_public_submission: boolean;
   reference_code: string | null;
   custom: Record<string, unknown>;
+  priority: string;
+  feedback_provided_to_reporter: boolean;
+  feedback_provided_date: string | null;
+  reporter_unreachable: boolean;
+  received_date: string;
+  reporter_sex: string | null;
+  reporter_age: number | null;
+  location: string | null;
+  response_wanted: boolean;
+  category: string | null;
+  referred_to: string | null;
+  staff_responsible_id: string | null;
+  date_closed: string | null;
 }
 
 export interface FinancialServiceProviderRow {
@@ -388,6 +402,11 @@ export interface LearningAgendaItemRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  owner_id: string | null;
+  collaborators: string | null;
+  schedule_years: string[];
+  dissemination: string[];
+  product_resource_id: string | null;
 }
 
 export interface LessonsLearnedRow {
@@ -409,6 +428,12 @@ export interface LessonsLearnedRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  source_document: string | null;
+  outcome_area: string | null;
+  learning_topic: string | null;
+  issues_raised: string | null;
+  change_effected: string | null;
+  responsible_id: string | null;
 }
 
 export interface LoanApplicationRow {
@@ -615,6 +640,7 @@ export interface ReflectionMeetingRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  youth_count: number;
 }
 
 export interface RolePermissionRow {
@@ -731,6 +757,10 @@ export interface SurveyQuestionRow {
   order_index: number;
   created_at: string;
   updated_at: string;
+  min_value: number | null;
+  max_value: number | null;
+  show_if_code: string | null;
+  show_if_value: string | null;
 }
 
 export interface SurveyResponseRow {
@@ -754,6 +784,14 @@ export interface SurveyResponseRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  kebele: string | null;
+  client_ref: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  gps_accuracy_m: number | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
 }
 
 export interface SurveyTemplateRow {

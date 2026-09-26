@@ -113,6 +113,8 @@ export const getSurvey = (id: string) =>
 
 export interface SurveyResponseInput {
   template_id: string;
+  /** Device-made, so a replayed offline submission is not saved twice. */
+  client_ref?: string;
   respondent_name?: string;
   respondent_sex?: "male" | "female";
   is_youth?: boolean;
@@ -122,7 +124,7 @@ export interface SurveyResponseInput {
   woreda?: string;
   collected_on: string;
   enumerator?: string;
-  status: "draft" | "submitted" | "validated" | "rejected";
+  status: "draft" | "submitted";
   notes?: string;
   answers: {
     question_id: string;
