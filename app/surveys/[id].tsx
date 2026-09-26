@@ -5,7 +5,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSurvey, submitSurveyResponse, type SurveyResponseInput } from "@/lib/data";
 import { enqueue, shouldQueue } from "@/lib/queue";
 import { useAuth } from "@/lib/auth";
-import { Button, Card, ChoiceRow, EmptyState, ErrorText, Field, Loading, StickyFooter, Text, Toggle } from "@/components/ui";
+import {
+  Button,
+  Card,
+  ChoiceRow,
+  EmptyState,
+  ErrorText,
+  Field,
+  Loading,
+  Select,
+  StickyFooter,
+  Text,
+  Toggle,
+} from "@/components/ui";
+import { ApiError } from "@/lib/api";
+import { useLocations, type Option } from "@/lib/reference";
 import { colors, spacing } from "@/theme";
 import type { SurveyQuestionRow } from "@/lib/types";
 
@@ -72,6 +86,11 @@ export default function CollectResponse() {
   const [region, setRegion] = useState("");
   const [zone, setZone] = useState("");
   const [woreda, setWoreda] = useState("");
+  // Reference lists cached on the device, so the location is picked, not typed,
+  // even offline. Called before any early return (rules of hooks).
+  const locations = useLocations();
+  const zoneOptions: Option[] = locations.zonesOf(region);
+  const woredaOptions: Option[] = locations.woredasOf(zone);
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -90,6 +109,15 @@ export default function CollectResponse() {
   }
 
   const { template, questions: allQuestions } = data;
+
+  if (template.status !== "active") {
+    return (
+      <EmptyState
+        title="This survey is not collecting responses"
+        message={`It is ${template.status}. Ask your monitoring officer to reopen it if data collection should continue.`}
+      />
+    );
+  }
   const visible = visibleQuestionIds(allQuestions, answers);
   const questions = allQuestions.filter((q) => visible.has(q.id));
 
@@ -186,7 +214,8 @@ export default function CollectResponse() {
         });
         setNotice("You are offline: this response is saved on the device and will upload when you sync.");
       } else {
-        setFormError(err instanceof Error ? err.message : "Could not submit the response");
+        // Every problem the server found (a required answer, the survey window, a duplicate).
+        setFormError(err instanceof ApiError ? err.problems.join("\n") : "Could not submit the response");
       }
     } finally {
       setSaving(false);
@@ -230,9 +259,44 @@ export default function CollectResponse() {
           />
           <Toggle label="Youth (15–35)" value={isYouth} onChange={setIsYouth} />
           <Toggle label="Has a disability" value={disability} onChange={setDisability} />
-          <Field label="Region *" value={region} onChangeText={setRegion} autoCapitalize="words" />
-          <Field label="Zone" value={zone} onChangeText={setZone} autoCapitalize="words" />
-          <Field label="Woreda" value={woreda} onChangeText={setWoreda} autoCapitalize="words" />
+          <Select
+            label="Region"
+            required
+            value={region}
+            options={locations.regions}
+            onChange={(v) => {
+              setRegion(v);
+              setZone("");
+              setWoreda("");
+            }}
+            placeholder="Select region"
+          />
+          {zoneOptions.length > 0 ? (
+            <Select
+              label="Zone"
+              value={zone}
+              options={zoneOptions}
+              onChange={(v) => {
+                setZone(v);
+                setWoreda("");
+              }}
+              placeholder={region ? "Select zone" : "Select the region first"}
+              disabled={!region}
+            />
+          ) : (
+            <Field label="Zone" value={zone} onChangeText={setZone} autoCapitalize="words" />
+          )}
+          {woredaOptions.length > 0 ? (
+            <Select
+              label="Woreda"
+              value={woreda}
+              options={woredaOptions}
+              onChange={setWoreda}
+              placeholder="Select woreda"
+            />
+          ) : (
+            <Field label="Woreda" value={woreda} onChangeText={setWoreda} autoCapitalize="words" />
+          )}
         </Card>
 
         <Card style={styles.card}>

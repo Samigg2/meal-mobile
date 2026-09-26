@@ -76,7 +76,7 @@ export default function ParticipantDetail() {
           <>
             <Text style={styles.value}>{enterprise.enterprise_name}</Text>
             <Text style={styles.meta}>
-              {[enterprise.enterprise_type, enterprise.sector, enterprise.status]
+              {[enterprise.enterprise_type, enterprise.status]
                 .filter(Boolean)
                 .map((x) => capital(String(x)))
                 .join(" · ")}

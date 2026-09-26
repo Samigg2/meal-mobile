@@ -1,4 +1,6 @@
 import { api } from "./api";
+import { cachedFetch } from "./offline-cache";
+import { fetchLookups } from "./reference";
 import type {
   EnterpriseRow,
   IndicatorRow,
@@ -49,8 +51,9 @@ export interface ParticipantInput {
   /** YYYY-MM-DD, not in the future. */
   date_of_birth: string;
   sex: "male" | "female";
-  region?: string;
-  zone?: string;
+  /** Region, zone and woreda are all required by the API on registration. */
+  region: string;
+  zone: string;
   woreda: string;
   kebele?: string;
   /** +251 or 0, then 7 or 9, then 8 digits. */
@@ -64,9 +67,12 @@ export interface ParticipantInput {
   vulnerability_category?: string;
   /** The API accepts only these two on create. */
   status?: "active" | "inactive";
-  consent_given?: boolean;
+  /** Must be true: the API refuses a registration without informed consent. */
+  consent_given: boolean;
   consent_version?: string;
   notes?: string;
+  /** Made on the device, so a replayed offline registration is not saved twice. */
+  client_ref?: string;
 }
 
 export interface DuplicateCheck {
@@ -88,7 +94,7 @@ export const listParticipants = () => api.get<ParticipantRow[]>("/participants")
 export const getParticipantDetail = (id: string) =>
   api.get<{
     participant: ParticipantRow;
-    enterprise: Pick<EnterpriseRow, "id" | "enterprise_name" | "enterprise_type" | "sector" | "status"> | null;
+    enterprise: Pick<EnterpriseRow, "id" | "enterprise_name" | "enterprise_type" | "status"> | null;
     trainings: {
       id: string;
       attendance_date: string;
@@ -101,25 +107,49 @@ export const createParticipant = (input: ParticipantInput) => api.post<Participa
 
 /* -------------------------------- surveys -------------------------------- */
 
-export const listSurveys = () =>
-  api.get<(SurveyTemplateRow & { response_count: number; question_count: number })[]>("/surveys");
+type SurveyListItem = SurveyTemplateRow & { response_count: number; question_count: number };
 
+/** The surveys list, kept on the device so it can be opened offline. */
+export const listSurveys = () =>
+  cachedFetch("surveys", () => api.get<SurveyListItem[]>("/surveys"));
+
+/**
+ * A survey form for data collection. Only the template and its questions are
+ * kept on the device — never the responses already collected, which hold
+ * other people's personal data.
+ */
 export const getSurvey = (id: string) =>
-  api.get<{
-    template: SurveyTemplateRow;
-    questions: SurveyQuestionRow[];
-    responses: SurveyResponseRow[];
-  }>(`/surveys/${id}`);
+  cachedFetch(`survey:${id}`, async () => {
+    const full = await api.get<{
+      template: SurveyTemplateRow;
+      questions: SurveyQuestionRow[];
+      responses: SurveyResponseRow[];
+    }>(`/surveys/${id}`);
+    return { template: full.template, questions: full.questions };
+  });
+
+/**
+ * Download everything a field officer needs to work without a connection:
+ * reference lists and the form of every active survey. Returns how many
+ * survey forms were stored.
+ */
+export async function downloadForOffline(): Promise<{ surveys: number }> {
+  await fetchLookups();
+  const surveys = await listSurveys();
+  const active = surveys.filter((s) => s.status === "active");
+  for (const s of active) await getSurvey(s.id);
+  return { surveys: active.length };
+}
 
 export interface SurveyResponseInput {
   template_id: string;
   /** Device-made, so a replayed offline submission is not saved twice. */
   client_ref?: string;
   respondent_name?: string;
-  respondent_sex?: "male" | "female";
+  respondent_sex: "male" | "female";
   is_youth?: boolean;
   disability?: boolean;
-  region?: string;
+  region: string;
   zone?: string;
   woreda?: string;
   collected_on: string;

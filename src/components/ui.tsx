@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -393,6 +393,8 @@ export function Select<T extends string>({
   onChange,
   placeholder = "Select…",
   error,
+  hint,
+  disabled,
 }: {
   label: string;
   required?: boolean;
@@ -401,9 +403,18 @@ export function Select<T extends string>({
   onChange: (value: T) => void;
   placeholder?: string;
   error?: string | null;
+  hint?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const selected = options.find((o) => o.value === value);
+  // Long lists (zones, woredas) get a search box so a field officer is not
+  // scrolling through hundreds of names.
+  const searchable = options.length > 8;
+  const shown = query.trim()
+    ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
   return (
     <View style={styles.field}>
       <Text style={styles.label}>
@@ -413,18 +424,41 @@ export function Select<T extends string>({
       <Pressable
         accessibilityRole="combobox"
         accessibilityLabel={label}
-        onPress={() => setOpen(true)}
-        style={[styles.inputWrap, styles.selectTrigger, !!error && styles.inputError]}
+        accessibilityState={{ disabled: !!disabled }}
+        disabled={disabled}
+        onPress={() => {
+          setQuery("");
+          setOpen(true);
+        }}
+        style={[
+          styles.inputWrap,
+          styles.selectTrigger,
+          !!error && styles.inputError,
+          disabled && { opacity: 0.5 },
+        ]}
       >
         <Text style={[styles.selectText, !selected && styles.selectPlaceholder]} numberOfLines={1}>
           {selected ? selected.label : placeholder}
         </Text>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
-      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+      {error ? <Text style={styles.fieldError}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} title={label}>
-        {options.map((option) => {
+        {searchable ? (
+          <View style={[styles.inputWrap, { marginBottom: spacing.sm }]}>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search…"
+              placeholderTextColor={colors.muted}
+              style={styles.input}
+              autoCorrect={false}
+            />
+          </View>
+        ) : null}
+        {shown.length === 0 ? <Text style={styles.hint}>No match. Choose &ldquo;Other&rdquo; to type it.</Text> : null}
+        {shown.map((option) => {
           const isSelected = option.value === value;
           return (
             <Pressable
@@ -668,7 +702,9 @@ export function Skeleton({ width = "100%", height = 16, borderRadius = 8, style 
   borderRadius?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const opacity = useRef(new Animated.Value(0.5)).current;
+  // Created once and kept in state: reading a ref during render breaks the
+  // React compiler rules, and the value must survive re-renders.
+  const [opacity] = useState(() => new Animated.Value(0.5));
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([

@@ -34,9 +34,17 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The error body from the API, e.g. `problems` (every validation issue) or `match` (a duplicate). */
+    readonly details?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+
+  /** Every problem the API listed, or just the message. */
+  get problems(): string[] {
+    const list = (this.details as { problems?: unknown } | undefined)?.problems;
+    return Array.isArray(list) && list.length ? list.map(String) : [this.message];
   }
 
   /** True when the request never reached the API (offline, DNS, timeout). */
@@ -146,6 +154,9 @@ async function refreshSession(): Promise<boolean> {
 
 type Query = Record<string, string | number | boolean | undefined | null>;
 
+/** How long a request may take before it is treated as offline. */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 interface Options {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
@@ -166,15 +177,30 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (!options.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
+  // A request on a weak signal can hang indefinitely. After the timeout it is
+  // treated as offline, so the submission goes to the queue instead of the
+  // field officer waiting on a spinner.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(buildUrl(path, options.query), {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
     });
   } catch (error) {
-    throw new ApiError(0, error instanceof Error ? error.message : "Network request failed");
+    throw new ApiError(
+      0,
+      controller.signal.aborted
+        ? "The connection is too slow or unavailable"
+        : error instanceof Error
+          ? error.message
+          : "Network request failed",
+    );
+  } finally {
+    clearTimeout(timer);
   }
 
   if (response.status === 401 && allowRefresh && !options.anonymous) {
@@ -185,14 +211,16 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
+    let details: unknown;
     try {
       const payload = (await response.json()) as { message?: unknown };
+      details = payload;
       if (typeof payload.message === "string") message = payload.message;
       else if (Array.isArray(payload.message)) message = payload.message.join("; ");
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, details);
   }
 
   if (response.status === 204) return undefined as T;

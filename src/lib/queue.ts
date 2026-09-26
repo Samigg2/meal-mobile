@@ -87,11 +87,15 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
       await removeFromQueue(item.id);
       synced += 1;
     } catch (error) {
+      // Every problem the server listed, so the field officer knows what to
+      // correct; a duplicate names the record it matched.
       const message =
         error instanceof ApiError
           ? error.isNetworkError
             ? "Still offline"
-            : error.message
+            : error.status === 409
+              ? `Not uploaded: ${error.message}. Discard this copy if it is the same person.`
+              : error.problems.join("; ")
           : "Sync failed";
       const items = await readQueue();
       await writeQueue(
@@ -101,6 +105,11 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
     }
   }
   return { synced, failed };
+}
+
+/** True when an item failed for a reason other than connectivity: it needs correcting, not retrying. */
+export function needsAttention(item: QueuedItem): boolean {
+  return !!item.lastError && item.lastError !== "Still offline";
 }
 
 /** A submission that failed for connectivity reasons should be queued, not lost. */

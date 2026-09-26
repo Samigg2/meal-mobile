@@ -11,6 +11,7 @@ import {
   type SessionUser,
 } from "./api";
 import type { AppRole, ProfileRow } from "./types";
+import { downloadForOffline } from "./data";
 import {
   hasPermission,
   isGlobalRole,
@@ -50,9 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await api.get<{ profile: ProfileRow; roles: AppRole[] }>("/auth/me");
       setProfile(data.profile);
       setRoles(data.roles);
+      // Refresh the reference lists and survey forms kept for offline work, in
+      // the background, whenever the officer is online and signed in.
+      void downloadForOffline().catch(() => undefined);
       try {
         const { overrides } = await api.get<{
-          overrides: { role: AppRole; module: PermissionModule; action: string; allowed: boolean }[];
+          overrides: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[];
         }>("/admin/permissions/effective");
         setPermissionOverrides(overrides);
         setPermissionsVersion((v) => v + 1);

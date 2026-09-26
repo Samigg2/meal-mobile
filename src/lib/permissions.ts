@@ -1,4 +1,9 @@
-import type { AppRole } from "./types";
+import type { AppRole } from "@/lib/types";
+/**
+ * Copied from meal-mis-frontend/src/lib/permissions.ts (UI hiding only; the
+ * backend matrix in common/permissions.ts is the enforcement point). Keep the
+ * three copies in step when a role or module changes.
+ */
 
 export type { AppRole };
 
@@ -16,69 +21,58 @@ export type PermissionModule =
   | "surveys"
   | "learning"
   | "reports"
-  | "admin";
+  | "admin"
+  | "material"
+  | "empowerment"
+  | "sbcc";
 
-export type PermissionAction = "read" | "write" | "delete";
+/** "approve" is the TOR's verification step (S6, Step 2), distinct from "write". */
+export type PermissionAction = "read" | "write" | "delete" | "approve";
 
 /**
  * Mirror of the database function public.has_module_permission().
  * The database is the source of truth (RLS enforces it); this table exists so the
  * UI can hide what the user is not allowed to do. Keep both in sync.
  */
-const MATRIX: Record<PermissionModule, { read: AppRole[]; write: AppRole[] }> = {
+/**
+ * `delete` is an explicit column, not a synonym for `write`. Omitting it means
+ * super admins only — participants, safeguarding and finance are omitted
+ * deliberately. Mirrors the backend, which is the enforcement point.
+ */
+const MATRIX: Record<
+  PermissionModule,
+  { read: AppRole[]; write: AppRole[]; approve?: AppRole[]; delete?: AppRole[] }
+> = {
   participants: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "field_officer",
-      "partner_officer",
-      "donor_viewer",
-    ],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    // Not field_officer: the author of a registration does not review it.
+    approve: ["programme_manager", "monitoring_officer"],
   },
   enterprises: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "field_officer",
-      "partner_officer",
-      "donor_viewer",
-    ],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
   training: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "field_officer",
-      "partner_officer",
-      "donor_viewer",
-    ],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: ["programme_manager", "field_officer"],
+    delete: ["programme_manager", "field_officer"],
   },
   partnerships: {
-    read: ["programme_manager", "monitoring_officer", "partner_officer", "donor_viewer"],
-    write: ["programme_manager", "partner_officer"],
+    read: ["programme_manager", "monitoring_officer", "donor_viewer"],
+    write: ["programme_manager"],
+    delete: ["programme_manager"],
   },
   governance: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "partner_officer",
-      "field_officer",
-      "donor_viewer",
-    ],
-    write: ["programme_manager", "monitoring_officer", "partner_officer"],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer"],
+    delete: ["programme_manager", "monitoring_officer"],
   },
   actions: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "field_officer",
-      "partner_officer",
-      "finance_officer",
-    ],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "finance_officer"],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
   finance: {
     read: ["programme_manager", "finance_officer", "donor_viewer"],
@@ -87,6 +81,7 @@ const MATRIX: Record<PermissionModule, { read: AppRole[]; write: AppRole[] }> = 
   feedback: {
     read: ["programme_manager", "monitoring_officer", "field_officer"],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
   safeguarding: {
     read: ["programme_manager"],
@@ -97,44 +92,64 @@ const MATRIX: Record<PermissionModule, { read: AppRole[]; write: AppRole[] }> = 
       "programme_manager",
       "monitoring_officer",
       "field_officer",
-      "partner_officer",
       "finance_officer",
       "donor_viewer",
     ],
     write: ["programme_manager", "monitoring_officer"],
+    // Verifying a reported indicator value is a second person's job.
+    approve: ["programme_manager", "monitoring_officer"],
+    delete: ["programme_manager", "monitoring_officer"],
   },
   surveys: {
-    read: [
-      "programme_manager",
-      "monitoring_officer",
-      "field_officer",
-      "partner_officer",
-      "donor_viewer",
-    ],
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    // Verifying a response is a second person's job, as with registrations.
+    approve: ["programme_manager", "monitoring_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
   learning: {
     read: [
       "programme_manager",
       "monitoring_officer",
       "field_officer",
-      "partner_officer",
       "finance_officer",
       "donor_viewer",
     ],
     write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
   reports: {
     read: ["programme_manager", "monitoring_officer", "finance_officer", "donor_viewer"],
     write: [],
   },
+  // Programme managers administer their own cluster. Every admin action is
+  // scoped to the caller's cluster on the server; creating or renaming a
+  // cluster stays super-admin-only.
   admin: {
-    read: [],
-    write: [],
+    read: ["programme_manager"],
+    write: ["programme_manager"],
+  },
+  material: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "field_officer"],
+    delete: ["programme_manager", "field_officer"],
+  },
+  empowerment: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
+  },
+  sbcc: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
 };
 
-/** Roles that see data across every organization. */
+/**
+ * Roles *allowed* to hold national scope. Holding one is necessary but not
+ * sufficient — see isGlobalScope below.
+ */
 export const GLOBAL_ROLES: AppRole[] = [
   "super_admin",
   "programme_manager",
@@ -146,20 +161,43 @@ export function isGlobalRole(roles: AppRole[]): boolean {
   return roles.some((r) => GLOBAL_ROLES.includes(r));
 }
 
-// The server's overrides for this user's cluster (cluster over programme-wide,
-// already merged), layered on the built-in table. Empty until loaded, and kept
-// as-is offline, so the last known matrix keeps applying. UI hiding only.
+/**
+ * National scope: sees every cluster's data. Mirrors the backend helper of the
+ * same name, which is the enforcement point — this copy only shapes the UI.
+ *
+ * A user assigned to a cluster is scoped to it whatever their role.
+ */
+export function isGlobalScope(roles: AppRole[], organizationId: string | null): boolean {
+  return organizationId === null && isGlobalRole(roles);
+}
+
+// The server's overrides for this user's cluster (already merged: cluster over
+// programme-wide), applied on top of the built-in table. Empty until loaded,
+// which leaves the table above in charge. UI hiding only — the API decides.
 let overrides = new Map<string, boolean>();
 
+const overrideKey = (role: AppRole, module: PermissionModule, action: PermissionAction) =>
+  `${role}|${module}|${action}`;
+
 export function setPermissionOverrides(
-  rows: { role: AppRole; module: PermissionModule; action: string; allowed: boolean }[],
+  rows: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[],
 ): void {
-  overrides = new Map(rows.map((r) => [`${r.role}|${r.module}|${r.action}`, r.allowed]));
+  overrides = new Map(rows.map((r) => [overrideKey(r.role, r.module, r.action), r.allowed]));
 }
 
 /** Cells nobody can change: a super admin, and a programme manager's Administration. */
-const isLockedCell = (role: AppRole, module: PermissionModule) =>
-  role === "super_admin" || (role === "programme_manager" && module === "admin");
+export function isLockedCell(role: AppRole, module: PermissionModule): boolean {
+  return role === "super_admin" || (role === "programme_manager" && module === "admin");
+}
+
+function builtInAllows(role: AppRole, module: PermissionModule, action: PermissionAction): boolean {
+  const entry = MATRIX[module];
+  if (!entry) return false;
+  // Absent means super admins only, for both: "unspecified" must mean "no".
+  if (action === "delete") return (entry.delete ?? []).includes(role);
+  if (action === "approve") return (entry.approve ?? []).includes(role);
+  return entry[action].includes(role);
+}
 
 export function hasPermission(
   roles: AppRole[],
@@ -167,14 +205,12 @@ export function hasPermission(
   action: PermissionAction,
 ): boolean {
   if (roles.includes("super_admin")) return true;
-  const entry = MATRIX[module];
-  if (!entry) return false;
-  return roles.some((role) => {
-    // Only super admins may delete arbitrary records; writers may delete their own.
-    const builtIn = (action === "delete" ? entry.write : entry[action]).includes(role);
-    if (isLockedCell(role, module)) return builtIn;
-    return overrides.get(`${role}|${module}|${action}`) ?? builtIn;
-  });
+  if (!MATRIX[module]) return false;
+  return roles.some((role) =>
+    isLockedCell(role, module)
+      ? builtInAllows(role, module, action)
+      : (overrides.get(overrideKey(role, module, action)) ?? builtInAllows(role, module, action)),
+  );
 }
 
 export const MODULE_LABELS: Record<PermissionModule, string> = {
@@ -192,19 +228,34 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   learning: "Learning & knowledge",
   reports: "Reports",
   admin: "Administration",
+  material: "Material & technical support",
+  empowerment: "Women empowerment",
+  sbcc: "SBCC campaigns",
 };
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   super_admin: "Super admin",
   programme_manager: "Programme manager",
   monitoring_officer: "Monitoring officer",
-  partner_officer: "Partner officer",
   field_officer: "Field officer",
   finance_officer: "Finance officer",
   donor_viewer: "Donor viewer",
 };
 
 export const ALL_ROLES = Object.keys(ROLE_LABELS) as AppRole[];
+
+/**
+ * Which roles this person may hand out. Mirrors `assertMayGrantRole` in the
+ * backend's admin.service.ts, which is the enforcement point — this copy only
+ * decides what the role picker offers.
+ *
+ * A cluster manager runs their own cluster and may appoint anyone within it,
+ * another programme manager included. `super_admin` is authority over the whole
+ * programme rather than over a cluster, so only a super admin hands it out.
+ */
+export function grantableRoles(roles: AppRole[]): AppRole[] {
+  return roles.includes("super_admin") ? ALL_ROLES : ALL_ROLES.filter((r) => r !== "super_admin");
+}
 
 /** Server-side guard used by server functions (defence in depth on top of RLS). */
 export function assertPermission(

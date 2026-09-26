@@ -321,6 +321,11 @@ export interface IndicatorValueRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+  calculated: boolean;
 }
 
 export interface IndicatorRow {
@@ -330,18 +335,23 @@ export interface IndicatorRow {
   code: string;
   name: string;
   description: string | null;
-  level: "output" | "outcome" | "impact";
+  level: string;
   unit: string;
   baseline_value: number;
   target_value: number;
   target_date: string | null;
-  frequency: "monthly" | "quarterly" | "biannual" | "annual";
+  frequency: string;
   region: string | null;
   responsible: string | null;
   status: "active" | "paused" | "retired";
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  framework_code: string | null;
+  result_area: string | null;
+  responsible_id: string | null;
+  disaggregation: string[];
+  calculation_source: string;
 }
 
 export interface InstitutionRow {
@@ -934,6 +944,8 @@ export interface WorkplanActivityRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  responsible_id: string | null;
+  woreda: string | null;
 }
 
 export interface YslaGroupMemberRow {

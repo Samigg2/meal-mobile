@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloudCheck, CloudUpload, Trash2 } from "lucide-react-native";
-import { clearQueue, removeFromQueue, syncQueue } from "@/lib/queue";
+import { CloudCheck, CloudDownload, CloudUpload, Trash2 } from "lucide-react-native";
+import { clearQueue, needsAttention, removeFromQueue, syncQueue, type QueuedItem } from "@/lib/queue";
+import { downloadForOffline } from "@/lib/data";
+import { cachedAt } from "@/lib/offline-cache";
+import { LOOKUPS_CACHE_KEY } from "@/lib/reference";
 import { useQueue } from "@/lib/net";
 import { Badge, Button, Card, EmptyState, IconBox, Text } from "@/components/ui";
 import { colors, spacing } from "@/theme";
@@ -12,6 +15,38 @@ export default function Sync() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [offlineStatus, setOfflineStatus] = useState<string | null>(null);
+  const [lastDownload, setLastDownload] = useState<string | null>(null);
+
+  useEffect(() => {
+    void cachedAt(LOOKUPS_CACHE_KEY).then(setLastDownload);
+  }, []);
+
+  async function handleDownload() {
+    setDownloading(true);
+    setOfflineStatus(null);
+    try {
+      const { surveys } = await downloadForOffline();
+      setOfflineStatus(`Reference lists and ${surveys} active survey form${surveys === 1 ? "" : "s"} are on this device.`);
+      setLastDownload(await cachedAt(LOOKUPS_CACHE_KEY));
+    } catch (err) {
+      setOfflineStatus(err instanceof Error ? err.message : "Could not download.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function confirmDiscard(item: QueuedItem) {
+    Alert.alert(
+      "Discard this submission?",
+      `"${item.label}" has not been uploaded. It will be deleted from this device and cannot be recovered.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => void removeFromQueue(item.id) },
+      ],
+    );
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -44,6 +79,22 @@ export default function Sync() {
     <ScrollView contentContainerStyle={styles.container}>
       <Card style={styles.card}>
         <View style={styles.headerRow}>
+          <IconBox icon={CloudDownload} color={colors.primary} tint={colors.primarySoft} size={44} />
+          <View style={styles.flex}>
+            <Text style={styles.title}>Offline data</Text>
+            <Text style={styles.meta}>
+              {lastDownload
+                ? `Lists and survey forms last updated ${new Date(lastDownload).toLocaleString()}.`
+                : "Not downloaded yet. Do this before going to the field."}
+            </Text>
+          </View>
+        </View>
+        <Button title="Download for offline" variant="outline" onPress={handleDownload} loading={downloading} />
+        {offlineStatus ? <Text style={styles.meta}>{offlineStatus}</Text> : null}
+      </Card>
+
+      <Card style={styles.card}>
+        <View style={styles.headerRow}>
           <IconBox icon={items.length ? CloudUpload : CloudCheck} color={items.length ? colors.warning : colors.success} tint={items.length ? colors.warningSoft : colors.successSoft} size={44} />
           <View style={styles.flex}>
             <Text style={styles.title}>
@@ -67,7 +118,7 @@ export default function Sync() {
         />
       ) : (
         items.map((item) => (
-          <Card key={item.id} style={styles.card}>
+          <Card key={item.id} style={[styles.card, needsAttention(item) && styles.attention]}>
             <Text style={styles.itemLabel}>{item.label}</Text>
             <Text style={styles.meta}>
               {item.kind === "participant" ? "Participant registration" : "Survey response"} ·{" "}
@@ -75,9 +126,12 @@ export default function Sync() {
             </Text>
             <View style={styles.badgeRow}>
               {item.attempts > 0 ? <Badge text={`${item.attempts} attempt(s)`} tone="warning" /> : null}
-              {item.lastError ? <Badge text={item.lastError} tone="danger" /> : null}
+              {needsAttention(item) ? <Badge text="Needs correcting" tone="danger" /> : null}
             </View>
-            <Button title="Discard" variant="outline" onPress={() => void removeFromQueue(item.id)} />
+            {item.lastError ? (
+              <Text style={needsAttention(item) ? styles.errorText : styles.meta}>{item.lastError}</Text>
+            ) : null}
+            <Button title="Discard" variant="outline" onPress={() => confirmDiscard(item)} />
           </Card>
         ))
       )}
@@ -95,4 +149,6 @@ const styles = StyleSheet.create({
   itemLabel: { fontSize: 14, fontWeight: "600", color: colors.text },
   badgeRow: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap" },
   result: { fontSize: 13, color: colors.success, fontWeight: "500" },
+  attention: { borderColor: colors.danger, borderWidth: 1 },
+  errorText: { fontSize: 12, color: colors.danger, lineHeight: 18 },
 });

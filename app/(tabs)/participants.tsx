@@ -9,7 +9,6 @@ import { initialsOf } from "@/lib/user";
 import {
   BottomSheet,
   Button,
-  Card,
   ChoiceRow,
   EmptyState,
   FAB,
