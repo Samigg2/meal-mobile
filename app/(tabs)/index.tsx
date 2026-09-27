@@ -9,6 +9,7 @@ import { displayName, greeting, initialsOf } from "@/lib/user";
 import { Card, EmptyState, IconBox, Skeleton, StatCard, Text } from "@/components/ui";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { colors, radius, spacing, topics } from "@/theme";
+import { useSettings } from "@/lib/reference";
 
 const timeAgo = (ms: number) => {
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60_000));
@@ -24,6 +25,7 @@ const shortDate = (iso?: string | null) =>
     : "—";
 
 export default function Overview() {
+  const settings = useSettings();
   const router = useRouter();
   const { profile, roles, user, can } = useAuth();
   const queued = useQueue();
@@ -136,7 +138,7 @@ export default function Overview() {
           <View style={styles.grid}>
             <StatCard topic="participants" label="Participants" value={data.participants} sub={`${data.activeParticipants} active`} />
             <StatCard topic="female" label="Female" value={data.female} />
-            <StatCard topic="youth" label="Youth (15–35)" value={data.youth} />
+            <StatCard topic="youth" label={`Youth (${settings.youth_min_age}–${settings.youth_max_age})`} value={data.youth} />
             <StatCard topic="disability" label="With disability" value={data.disability} />
             <StatCard topic="enterprises" label="Enterprises" value={data.enterprises} />
             <StatCard topic="trainings" label="Trainings" value={data.trainingEvents} />

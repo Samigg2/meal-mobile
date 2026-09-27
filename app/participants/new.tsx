@@ -1,16 +1,19 @@
 import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { CircleCheck, Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
+import { BadgeCheck, CircleCheck, Heart, IdCard, MapPin, Send, ShieldCheck, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   checkParticipantDuplicate,
   createParticipant,
+  sendFayidaOtp,
+  verifyFayidaOtp,
+  type FayidaDemographics,
   type ParticipantInput,
 } from "@/lib/data";
 import { ApiError } from "@/lib/api";
 import { enqueue, shouldQueue } from "@/lib/queue";
-import { useLocations, useLookupOptions, type Option } from "@/lib/reference";
+import { useLocations, useLookupOptions, useSettings, type Option, type ProgrammeSettings } from "@/lib/reference";
 import {
   Badge,
   Button,
@@ -24,6 +27,7 @@ import {
   Text,
   Toggle,
 } from "@/components/ui";
+import { DateField } from "@/components/date-picker";
 import { colors, radius, spacing } from "@/lib/theme";
 
 /**
@@ -88,11 +92,6 @@ const EMPTY: FormState = {
 const OTHER = "other";
 const PHONE = /^(?:\+251|0)[79]\d{8}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-/** Plausible ages (data quality, not eligibility) — the API applies the same bounds. */
-const MIN_AGE = 10;
-const MAX_AGE = 100;
-/** The programme's youth band, shown as a hint; the database sets is_youth itself. */
-const YOUTH_MAX = 35;
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -105,12 +104,11 @@ function newRef(): string {
   });
 }
 
-/** Types digits and inserts the dashes, so a date is always YYYY-MM-DD. */
-function maskDate(input: string): string {
-  const d = input.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 4) return d;
-  if (d.length <= 6) return `${d.slice(0, 4)}-${d.slice(4)}`;
-  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+/** The same day `years` ago, for the calendar's bounds. */
+function yearsAgo(years: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  return d.toISOString().slice(0, 10);
 }
 
 function isRealDate(value: string): boolean {
@@ -127,8 +125,12 @@ function ageOn(dob: string, on = todayISO()): number {
 
 type Errors = Partial<Record<keyof FormState | "form", string>>;
 
-/** The rules the API applies, so the field officer sees them before submitting. */
-function validate(form: FormState, woredaListed: boolean): Errors {
+/**
+ * The rules the API applies, so the field officer sees them before submitting.
+ * The age limits come from Programme settings (cached for offline use), the
+ * same values the database checks.
+ */
+function validate(form: FormState, woredaListed: boolean, settings: ProgrammeSettings): Errors {
   const errors: Errors = {};
   if (!form.full_name.trim()) errors.full_name = "Full name is required.";
   else if (form.full_name.trim().split(/\s+/).length < 2) {
@@ -143,12 +145,13 @@ function validate(form: FormState, woredaListed: boolean): Errors {
   }
 
   if (!form.date_of_birth) errors.date_of_birth = "Date of birth is required.";
-  else if (!isRealDate(form.date_of_birth)) errors.date_of_birth = "Enter a real date as YYYY-MM-DD.";
+  else if (!isRealDate(form.date_of_birth)) errors.date_of_birth = "Pick the date of birth from the calendar.";
   else if (form.date_of_birth > todayISO()) errors.date_of_birth = "Date of birth cannot be in the future.";
   else {
     const age = ageOn(form.date_of_birth);
-    if (age < MIN_AGE || age > MAX_AGE) {
-      errors.date_of_birth = `An age of ${age} is outside ${MIN_AGE} to ${MAX_AGE}. Check the date.`;
+    const { participant_min_age: min, participant_max_age: max } = settings;
+    if (age < min || age > max) {
+      errors.date_of_birth = `An age of ${age} is outside ${min} to ${max}. Check the date.`;
     }
   }
 
@@ -220,7 +223,6 @@ function toInput(form: FormState, clientRef: string): ParticipantInput {
     family_size: form.family_size.trim() ? Number(form.family_size) : undefined,
     vulnerability_category: vulnerability,
     consent_given: form.consent_given,
-    consent_version: form.consent_given ? "v1" : undefined,
     notes: text(form.notes),
   };
 }
@@ -237,12 +239,20 @@ export default function NewParticipant() {
   const [existing, setExisting] = useState<{ id: string; label: string } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Fayida e-KYC: send an OTP to the phone on the National ID, read it back.
+  const [otpStage, setOtpStage] = useState<"idle" | "sending" | "sent" | "verifying">("idle");
+  const [otp, setOtp] = useState("");
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [verifiedId, setVerifiedId] = useState<{ id: string; mock: boolean } | null>(null);
 
   const education = useLookupOptions("participants.education_level");
   const marital = useLookupOptions("participants.marital_status");
   const vulnerability = useLookupOptions("participants.vulnerability_category");
   const disability = useLookupOptions("participants.disability_type");
   const locations = useLocations();
+  const settings = useSettings();
+  const youthBand = `${settings.youth_min_age}–${settings.youth_max_age}`;
   const zones = locations.zonesOf(form.region);
   const woredas = locations.woredasOf(form.zone);
   // Woreda coverage in reference data is partial, so "Other" lets a woreda that
@@ -250,11 +260,90 @@ export default function NewParticipant() {
   const woredaOptions: Option[] = [...woredas, { label: "Other (type it)", value: OTHER }];
 
   const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
+  const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => (prev[key] || prev.form ? { ...prev, [key]: undefined, form: undefined } : prev));
     setExisting(null);
+  }
+
+  function resetOtp() {
+    setOtpStage("idle");
+    setOtp("");
+    setOtpMessage(null);
+    setOtpError(null);
+  }
+
+  async function handleSendOtp() {
+    setOtpError(null);
+    setOtpStage("sending");
+    try {
+      const res = await sendFayidaOtp(form.national_id);
+      if (!res.sent) {
+        setOtpStage("idle");
+        setOtpError(res.message ?? "The OTP could not be sent.");
+        return;
+      }
+      setOtpMessage(res.message ?? "OTP sent to the phone registered with this ID.");
+      setOtpStage("sent");
+    } catch (err) {
+      setOtpStage("idle");
+      setOtpError(
+        shouldQueue(err)
+          ? "No connection. National ID verification needs internet; you can still register and verify later."
+          : err instanceof ApiError
+            ? err.message
+            : "The OTP could not be sent.",
+      );
+    }
+  }
+
+  async function handleVerifyOtp() {
+    setOtpError(null);
+    setOtpStage("verifying");
+    try {
+      const res = await verifyFayidaOtp(form.national_id, otp);
+      if (!res.valid) {
+        setOtpStage("sent");
+        setOtpError(res.message ?? "The code did not match.");
+        return;
+      }
+      if (res.data) applyFayida(res.data);
+      setVerifiedId({ id: form.national_id, mock: res.source === "mock" });
+      resetOtp();
+    } catch (err) {
+      setOtpStage("sent");
+      setOtpError(err instanceof ApiError ? err.message : "Could not verify the code.");
+    }
+  }
+
+  /** Fills only the empty fields from the ID register; never overwrites what was typed. */
+  function applyFayida(data: FayidaDemographics) {
+    setForm((prev) => {
+      const region = prev.region || data.region || "";
+      const zone = prev.zone || (region === (data.region ?? "") ? (data.zone ?? "") : "");
+      let woreda = prev.woreda;
+      let woredaOther = prev.woreda_other;
+      if (!woreda && data.woreda && zone === (data.zone ?? "")) {
+        const listed = locations.woredasOf(zone).some((w) => w.value === data.woreda);
+        woreda = listed ? data.woreda : OTHER;
+        woredaOther = listed ? "" : data.woreda;
+      }
+      return {
+        ...prev,
+        full_name: prev.full_name || data.full_name || "",
+        date_of_birth: prev.date_of_birth || data.date_of_birth || "",
+        sex: prev.sex ?? data.sex,
+        region,
+        zone,
+        woreda,
+        woreda_other: woredaOther,
+        kebele: prev.kebele || data.kebele || "",
+        phone: prev.phone || data.phone || "",
+      };
+    });
+    setErrors({});
   }
 
   function showErrors(found: Errors) {
@@ -268,10 +357,12 @@ export default function NewParticipant() {
     setErrors({});
     setExisting(null);
     setClientRef(newRef());
+    setVerifiedId(null);
+    resetOtp();
   }
 
   async function handleSave() {
-    const found = validate(form, woredas.length > 0);
+    const found = validate(form, woredas.length > 0, settings);
     if (Object.keys(found).length > 0) {
       const count = Object.keys(found).length;
       showErrors({ ...found, form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.` });
@@ -372,12 +463,72 @@ export default function NewParticipant() {
           <Field
             label="National ID (Fayida)"
             value={form.national_id}
-            onChangeText={(v) => update("national_id", v.replace(/\s/g, ""))}
+            onChangeText={(v) => {
+              update("national_id", v.replace(/\s/g, ""));
+              if (otpStage !== "idle") resetOtp();
+              setOtpError(null);
+            }}
             placeholder="12-character number"
             maxLength={12}
             autoCapitalize="characters"
+            editable={otpStage === "idle" || otpStage === "sending"}
             error={errors.national_id}
           />
+          {verifiedId && verifiedId.id === form.national_id ? (
+            <View style={styles.verified}>
+              <BadgeCheck size={18} color={colors.success} />
+              <Text style={styles.verifiedText}>
+                {verifiedId.mock
+                  ? "Verified against test data (Fayida not connected yet). Empty fields were filled in."
+                  : "Verified with Fayida. Empty fields were filled in from the ID record."}
+              </Text>
+            </View>
+          ) : otpStage === "sent" || otpStage === "verifying" ? (
+            <View style={styles.otpBox}>
+              <Text style={styles.otpMessage}>{otpMessage}</Text>
+              <Field
+                label="One-time code"
+                value={otp}
+                onChangeText={(v) => {
+                  setOtp(v.replace(/\D/g, "").slice(0, 6));
+                  setOtpError(null);
+                }}
+                placeholder="6-digit code"
+                keyboardType="number-pad"
+                maxLength={6}
+                error={otpError}
+              />
+              <View style={styles.otpActions}>
+                <View style={styles.flexOne}>
+                  <Button title="Change ID" variant="outline" onPress={resetOtp} />
+                </View>
+                <View style={styles.flexOne}>
+                  <Button
+                    title="Verify"
+                    icon={BadgeCheck}
+                    onPress={handleVerifyOtp}
+                    loading={otpStage === "verifying"}
+                    disabled={otp.length !== 6}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : form.national_id.length === 12 ? (
+            <View style={styles.otpBox}>
+              <Text style={styles.otpMessage}>
+                Verify the ID: a one-time code goes to the phone registered with it, and the participant&apos;s details
+                fill in automatically.
+              </Text>
+              {otpError ? <Text style={styles.fieldError}>{otpError}</Text> : null}
+              <Button
+                title="Send verification code"
+                icon={Send}
+                variant="outline"
+                onPress={handleSendOtp}
+                loading={otpStage === "sending"}
+              />
+            </View>
+          ) : null}
           <Field
             label="Kebele ID"
             value={form.kebele_id}
@@ -390,22 +541,23 @@ export default function NewParticipant() {
         </Section>
 
         <Section title="Personal details" icon={User}>
-          <Field
+          <DateField
             label="Date of birth"
             required
             value={form.date_of_birth}
-            onChangeText={(v) => update("date_of_birth", maskDate(v))}
-            placeholder="YYYY-MM-DD"
-            keyboardType="number-pad"
-            maxLength={10}
+            onChange={(v) => update("date_of_birth", v)}
+            placeholder="Select date of birth"
+            min={yearsAgo(settings.participant_max_age)}
+            max={yearsAgo(settings.participant_min_age)}
+            initialYear={new Date().getFullYear() - 22}
             error={errors.date_of_birth}
             hint={age !== null && !errors.date_of_birth ? `Age ${age}` : undefined}
           />
           {age !== null && !errors.date_of_birth ? (
             <View style={styles.badgeRow}>
               <Badge
-                text={age <= YOUTH_MAX && age >= 15 ? `Youth (15–${YOUTH_MAX})` : `Outside the youth band (15–${YOUTH_MAX})`}
-                tone={age <= YOUTH_MAX && age >= 15 ? "success" : "warning"}
+                text={isYouth ? `Youth (${youthBand})` : `Outside the youth band (${youthBand})`}
+                tone={isYouth ? "success" : "warning"}
               />
             </View>
           ) : null}
@@ -598,6 +750,24 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
   consentNote: { fontSize: 12, color: colors.muted, lineHeight: 18 },
   fieldError: { fontSize: 12, color: colors.danger, fontWeight: "500" },
+  flexOne: { flex: 1 },
+  otpBox: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
+  otpMessage: { fontSize: 12, color: colors.secondary, lineHeight: 18 },
+  otpActions: { flexDirection: "row", gap: spacing.sm },
+  verified: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.successSoft,
+  },
+  verifiedText: { flex: 1, fontSize: 12, color: colors.success, fontWeight: "600", lineHeight: 18 },
   warn: { fontSize: 12, color: colors.warning, lineHeight: 18 },
   badgeRow: { flexDirection: "row", marginTop: -spacing.xs },
   existing: { gap: spacing.sm, borderColor: colors.warning, borderWidth: 1 },

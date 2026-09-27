@@ -18,8 +18,9 @@ import {
   Text,
   Toggle,
 } from "@/components/ui";
+import { DateField } from "@/components/date-picker";
 import { ApiError } from "@/lib/api";
-import { useLocations, type Option } from "@/lib/reference";
+import { useLocations, type Option, useSettings } from "@/lib/reference";
 import { colors, spacing } from "@/theme";
 import type { SurveyQuestionRow } from "@/lib/types";
 
@@ -67,6 +68,7 @@ function visibleQuestionIds(questions: SurveyQuestionRow[], answers: Record<stri
  * when the device is offline, the whole response is queued on the device.
  */
 export default function CollectResponse() {
+  const settings = useSettings();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -257,7 +259,7 @@ export default function CollectResponse() {
             ]}
             onChange={setSex}
           />
-          <Toggle label="Youth (15–35)" value={isYouth} onChange={setIsYouth} />
+          <Toggle label={`Youth (${settings.youth_min_age}–${settings.youth_max_age})`} value={isYouth} onChange={setIsYouth} />
           <Toggle label="Has a disability" value={disability} onChange={setDisability} />
           <Select
             label="Region"
@@ -341,12 +343,18 @@ export default function CollectResponse() {
                     );
                   })}
                 </View>
+              ) : question.question_type === "date" ? (
+                <DateField
+                  label=""
+                  value={answers[question.id]?.text ?? ""}
+                  onChange={(v) => setAnswer(question.id, { text: v })}
+                />
               ) : (
                 <Field
                   label=""
                   value={answers[question.id]?.text ?? ""}
                   onChangeText={(v) => setAnswer(question.id, { text: v })}
-                  placeholder={question.question_type === "date" ? "YYYY-MM-DD" : "Answer"}
+                  placeholder="Answer"
                   multiline={question.question_type === "text"}
                 />
               )}

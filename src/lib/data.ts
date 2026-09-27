@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { cachedFetch } from "./offline-cache";
-import { fetchLookups } from "./reference";
+import { fetchLookups, fetchSettings } from "./reference";
 import type {
   EnterpriseRow,
   IndicatorRow,
@@ -89,6 +89,29 @@ export const checkParticipantDuplicate = (input: DuplicateCheck) =>
     input,
   );
 
+/** What the national ID register (Fayida) returns for auto-fill. */
+export interface FayidaDemographics {
+  full_name?: string;
+  date_of_birth?: string;
+  sex?: "male" | "female";
+  region?: string;
+  zone?: string;
+  woreda?: string;
+  kebele?: string;
+  phone?: string;
+}
+
+/** Fayida e-KYC, step 1: an OTP goes to the phone registered with the National ID. */
+export const sendFayidaOtp = (national_id: string) =>
+  api.post<{ sent: boolean; message?: string }>("/participants/verify-fayida/send-otp", { national_id });
+
+/** Step 2: the participant reads the code back; a match returns their demographics. */
+export const verifyFayidaOtp = (national_id: string, otp: string) =>
+  api.post<{ valid: boolean; source?: "fayida" | "mock"; data?: FayidaDemographics; message?: string }>(
+    "/participants/verify-fayida/verify-otp",
+    { national_id, otp },
+  );
+
 export const listParticipants = () => api.get<ParticipantRow[]>("/participants");
 
 export const getParticipantDetail = (id: string) =>
@@ -130,11 +153,12 @@ export const getSurvey = (id: string) =>
 
 /**
  * Download everything a field officer needs to work without a connection:
- * reference lists and the form of every active survey. Returns how many
+ * reference lists, programme settings and the form of every active survey. Returns how many
  * survey forms were stored.
  */
 export async function downloadForOffline(): Promise<{ surveys: number }> {
   await fetchLookups();
+  await fetchSettings();
   const surveys = await listSurveys();
   const active = surveys.filter((s) => s.status === "active");
   for (const s of active) await getSurvey(s.id);

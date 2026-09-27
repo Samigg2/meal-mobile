@@ -8,11 +8,16 @@ import { secureStorage } from "./storage";
  * connectivity failures into a recognisable error so field screens can queue
  * the submission instead of losing it.
  */
-const BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL ??
-  (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ??
-  "http://localhost:4000/api/v1"
-).replace(/\/$/, "");
+const CONFIGURED_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl;
+
+// A release build must be told where the API is: on a phone "localhost" is the
+// phone itself, so falling back to it would only fail later and more quietly.
+if (!CONFIGURED_URL && !__DEV__) {
+  throw new Error("EXPO_PUBLIC_API_URL is not set for this build");
+}
+
+const BASE_URL = (CONFIGURED_URL ?? "http://localhost:4000/api/v1").replace(/\/$/, "");
 
 const ACCESS_KEY = "meal-mis.access-token";
 const REFRESH_KEY = "meal-mis.refresh-token";

@@ -18,6 +18,7 @@ import {
   Text,
 } from "@/components/ui";
 import { colors, radius, spacing, topics } from "@/theme";
+import { useSettings } from "@/lib/reference";
 
 type Filters = {
   status?: "active" | "inactive";
@@ -41,6 +42,7 @@ const yesNo = [
 ];
 
 export default function Participants() {
+  const settings = useSettings();
   const router = useRouter();
   const { can } = useAuth();
   const [search, setSearch] = useState("");
@@ -241,7 +243,7 @@ export default function Participants() {
             onChange={(v) => setFilters((f) => ({ ...f, sex: f.sex === v ? undefined : v }))}
           />
           <ChoiceRow
-            label="Youth (15–35)"
+            label={`Youth (${settings.youth_min_age}–${settings.youth_max_age})`}
             value={filters.youth}
             options={yesNo}
             onChange={(v) => setFilters((f) => ({ ...f, youth: f.youth === v ? undefined : v }))}
