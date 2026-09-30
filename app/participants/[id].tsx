@@ -1,16 +1,19 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { CircleAlert, ShieldCheck } from "lucide-react-native";
+import { CircleAlert, Pencil, ShieldCheck } from "lucide-react-native";
 import { getParticipantDetail } from "@/lib/data";
 import { initialsOf } from "@/lib/user";
-import { Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
+import { useAuth } from "@/lib/auth";
+import { Button, Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
 import { colors, spacing, topics } from "@/theme";
 
 const capital = (s?: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null);
 
 export default function ParticipantDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { can } = useAuth();
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ["participant-detail", id],
     queryFn: () => getParticipantDetail(id),
@@ -59,6 +62,16 @@ export default function ParticipantDetail() {
             <StatusPill label="No consent" tone="red" icon={CircleAlert} outline />
           )}
         </View>
+        {can("participants", "write") ? (
+          <View style={styles.editButton}>
+            <Button
+              title="Edit"
+              icon={Pencil}
+              variant="outline"
+              onPress={() => router.push({ pathname: "/participants/edit/[id]", params: { id: participant.id } })}
+            />
+          </View>
+        ) : null}
       </Card>
 
       <Card style={styles.card}>
@@ -126,6 +139,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 20, fontWeight: "700", color: colors.text, textAlign: "center" },
   id: { fontSize: 13, color: colors.muted },
   pills: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap", justifyContent: "center", marginTop: spacing.sm },
+  editButton: { marginTop: spacing.sm, alignSelf: "stretch" },
   card: { gap: spacing.sm },
   meta: { fontSize: 13, color: colors.muted },
   value: { fontSize: 15, color: colors.text, fontWeight: "600" },

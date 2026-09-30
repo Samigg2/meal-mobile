@@ -54,6 +54,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="participants/new" options={{ title: "Register participant" }} />
             <Stack.Screen name="participants/[id]" options={{ title: "Participant" }} />
+            <Stack.Screen name="participants/edit/[id]" options={{ title: "Edit participant" }} />
             <Stack.Screen name="surveys/[id]" options={{ title: "Collect response" }} />
             <Stack.Screen name="sync" options={{ title: "Offline queue" }} />
             <Stack.Screen name="access" options={{ title: "Your access" }} />

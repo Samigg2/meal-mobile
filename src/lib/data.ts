@@ -128,6 +128,10 @@ export const getParticipantDetail = (id: string) =>
 
 export const createParticipant = (input: ParticipantInput) => api.post<ParticipantRow>("/participants", input);
 
+/** Same validation and duplicate-across-organizations check as create, run again on the changed fields. */
+export const updateParticipant = (id: string, participant: Partial<ParticipantInput>) =>
+  api.patch<ParticipantRow>(`/participants/${id}`, { participant });
+
 /* -------------------------------- surveys -------------------------------- */
 
 type SurveyListItem = SurveyTemplateRow & { response_count: number; question_count: number };
