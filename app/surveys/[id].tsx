@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Location from "expo-location";
+import { Crosshair, MapPin, X } from "lucide-react-native";
 import { getSurvey, submitSurveyResponse, type SurveyResponseInput } from "@/lib/data";
 import { enqueue, shouldQueue } from "@/lib/queue";
 import { useAuth } from "@/lib/auth";
@@ -99,6 +101,31 @@ export default function CollectResponse() {
   const [saving, setSaving] = useState(false);
   // Kept for the life of this screen, so a retry sends the same reference.
   const [clientRef] = useState(makeRef);
+  const [gps, setGps] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  async function captureGps() {
+    setLocating(true);
+    setGpsError(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setGpsError("Location permission was refused.");
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setGps({
+        latitude: Number(pos.coords.latitude.toFixed(6)),
+        longitude: Number(pos.coords.longitude.toFixed(6)),
+        accuracy: Math.round(pos.coords.accuracy ?? 0),
+      });
+    } catch {
+      setGpsError("Could not get a GPS fix. Try again in the open.");
+    } finally {
+      setLocating(false);
+    }
+  }
 
   if (isLoading) return <Loading />;
   if (isError || !data) {
@@ -195,6 +222,9 @@ export default function CollectResponse() {
       enumerator: profile?.full_name || profile?.email || undefined,
       status: "submitted",
       notes: notes || undefined,
+      latitude: gps?.latitude,
+      longitude: gps?.longitude,
+      gps_accuracy_m: gps?.accuracy,
       answers: collected,
     };
   }
@@ -299,6 +329,35 @@ export default function CollectResponse() {
           ) : (
             <Field label="Woreda" value={woreda} onChangeText={setWoreda} autoCapitalize="words" />
           )}
+
+          <View style={styles.gpsRow}>
+            <MapPin size={16} color={colors.muted} />
+            <View style={styles.gpsTextWrap}>
+              {gps ? (
+                <Text style={styles.gpsText}>
+                  {gps.latitude}, {gps.longitude}
+                  <Text style={[styles.gpsAccuracy, gps.accuracy > 100 && styles.gpsAccuracyWeak]}>
+                    {"  "}±{gps.accuracy} m{gps.accuracy > 100 ? " (weak fix, retry in the open)" : ""}
+                  </Text>
+                </Text>
+              ) : (
+                <Text style={styles.gpsPlaceholder}>No GPS point captured for this response.</Text>
+              )}
+            </View>
+            {gps ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear GPS point" onPress={() => setGps(null)}>
+                <X size={16} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Button
+            title={gps ? "Recapture GPS" : "Capture GPS"}
+            icon={Crosshair}
+            variant="outline"
+            onPress={captureGps}
+            loading={locating}
+          />
+          <ErrorText>{gpsError}</ErrorText>
         </Card>
 
         <Card style={styles.card}>
@@ -387,6 +446,20 @@ const styles = StyleSheet.create({
   questionLabel: { fontSize: 14, fontWeight: "600", color: colors.text },
   help: { fontSize: 12, color: colors.muted },
   optionList: { gap: 0 },
+  gpsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: 10,
+  },
+  gpsTextWrap: { flex: 1 },
+  gpsText: { fontSize: 13, color: colors.text },
+  gpsAccuracy: { fontSize: 12, color: colors.muted },
+  gpsAccuracyWeak: { color: colors.warning },
+  gpsPlaceholder: { fontSize: 13, color: colors.muted },
   noticeWrap: { flex: 1, justifyContent: "center", padding: spacing.lg, backgroundColor: colors.background },
   notice: { gap: spacing.md },
   noticeTitle: { fontSize: 17, fontWeight: "700", color: colors.text },

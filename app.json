@@ -10,7 +10,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MEAL MIS uses your location to record where a survey response was collected."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
@@ -18,6 +24,7 @@
     },
     "android": {
       "package": "org.rayee2.mealmis",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       "adaptiveIcon": {
         "backgroundColor": "#0F5132",
         "foregroundImage": "./assets/android-icon-foreground.png",

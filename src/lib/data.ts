@@ -184,6 +184,9 @@ export interface SurveyResponseInput {
   enumerator?: string;
   status: "draft" | "submitted";
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  gps_accuracy_m?: number;
   answers: {
     question_id: string;
     value_text?: string;
