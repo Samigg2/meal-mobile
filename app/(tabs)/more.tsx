@@ -21,7 +21,7 @@ import { syncQueue } from "@/lib/queue";
 import { apiBaseUrl } from "@/lib/api";
 import { displayName } from "@/lib/user";
 import { BottomSheet, Button, Card, ListRow, StatusPill, Text } from "@/components/ui";
-import { ROLE_LABELS } from "@/lib/permissions";
+import { roleLabel } from "@/lib/permissions";
 import { colors, radius, spacing, topics } from "@/theme";
 
 const PRIVACY =
@@ -87,13 +87,13 @@ export default function More() {
           ) : null}
           <View style={styles.pills}>
             {roles.length ? (
-              roles.map((r) => <StatusPill key={r} label={ROLE_LABELS[r]} tone="blue" />)
+              roles.map((r) => <StatusPill key={r} label={roleLabel(r)} tone="blue" />)
             ) : (
               <StatusPill label="No role assigned" tone="amber" />
             )}
           </View>
           <Text style={styles.scope}>
-            {isGlobalScope ? "Sees data across all organizations" : "Sees data for their own organization"}
+            {isGlobalScope ? "Sees data across all clusters" : "Sees data for their own cluster"}
           </Text>
         </View>
       </Card>
@@ -165,7 +165,7 @@ export default function More() {
         <View style={styles.sheetBody}>
           <Detail label="Name" value={name} />
           <Detail label="Email" value={email} />
-          <Detail label="Role" value={roles.length ? roles.map((r) => ROLE_LABELS[r]).join(", ") : "None assigned"} />
+          <Detail label="Role" value={roles.length ? roles.map((r) => roleLabel(r)).join(", ") : "None assigned"} />
           <Detail label="Organization" value={profile?.organization ?? "—"} />
           <Detail label="Phone" value={profile?.phone ?? "—"} />
         </View>

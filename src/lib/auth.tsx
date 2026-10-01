@@ -14,10 +14,12 @@ import type { AppRole, ProfileRow } from "./types";
 import { downloadForOffline } from "./data";
 import {
   hasPermission,
-  isGlobalRole,
+  isGlobalScope,
   setPermissionOverrides,
+  setRoleDefinitions,
   type PermissionAction,
   type PermissionModule,
+  type RoleDefinition,
 } from "./permissions";
 
 interface AuthState {
@@ -62,6 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setPermissionsVersion((v) => v + 1);
       } catch {
         // Keep whatever matrix was last loaded (the built-in one on a first run).
+      }
+      try {
+        // Roles are data a super admin can create; their labels come from here.
+        setRoleDefinitions(await api.get<RoleDefinition[]>("/admin/roles"));
+        setPermissionsVersion((v) => v + 1);
+      } catch {
+        // Keep the list last loaded (the six built-in roles on a first run).
       }
     } catch {
       // Offline start-up keeps the stored session; roles arrive on next connect.
@@ -132,13 +141,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roles,
       ready,
       loadingProfile,
-      isGlobalScope: isGlobalRole(roles),
+      // Per person: a role and no cluster of their own. This used to look at the
+      // role alone, so a programme manager assigned to a cluster was shown as
+      // seeing every organization.
+      isGlobalScope: isGlobalScope(roles, profile?.organization_id ?? null),
       signIn,
       signOut,
       can,
       refreshProfile: fetchProfile,
     }),
-    [user, profile, roles, ready, loadingProfile, signIn, signOut, can, fetchProfile],
+    // permissionsVersion: role labels (roleLabel) read the list loaded above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, profile, roles, ready, loadingProfile, signIn, signOut, can, fetchProfile, permissionsVersion],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

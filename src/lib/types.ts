@@ -12,7 +12,6 @@ export type ActionPriority = "low" | "medium" | "high" | "critical";
 export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other" | "lesson_learned";
 export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled";
 export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
-export type AppRole = "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
 export type AttendanceStatus = "present" | "absent" | "excused";
 export type EmploymentStatus = "placed" | "retained" | "exited" | "verified" | "pending_verification";
 export type EmploymentType = "wage_employment" | "self_employment" | "apprenticeship" | "internship" | "contract";
@@ -38,6 +37,11 @@ export type SavingsStatus = "active" | "dormant" | "closed";
 export type TrainingStatus = "planned" | "ongoing" | "completed" | "cancelled";
 export type TrainingType = "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other";
 
+/* ------------------------------ aliases ------------------------------ */
+
+/** A role key from public.roles. Was an enum until roles became data (migration 0047). */
+export type AppRole = string;
+
 /* -------------------------------- rows -------------------------------- */
 
 export interface ActionItemRow {
@@ -59,6 +63,20 @@ export interface ActionItemRow {
   updated_at: string;
   custom: Record<string, unknown>;
   owner_id: string | null;
+}
+
+export interface AppSettingRow {
+  id: string;
+  key: string;
+  value: string;
+  value_type: string;
+  label: string;
+  description: string | null;
+  min_value: number | null;
+  max_value: number | null;
+  sort_order: number;
+  updated_at: string;
+  updated_by: string | null;
 }
 
 export interface AttachmentRow {
@@ -186,7 +204,7 @@ export interface EnterpriseRow {
   created_by: string;
   enterprise_name: string;
   owner_name: string | null;
-  enterprise_type: "trade" | "service" | "manufacturing" | "agriculture" | "technology" | "other" | null;
+  enterprise_type: string | null;
   region: string | null;
   zone: string | null;
   woreda: string | null;
@@ -217,7 +235,7 @@ export interface FeedbackRow {
   id: string;
   created_by: string | null;
   feedback_type: "complaint" | "suggestion" | "compliment" | "query";
-  source: "helpline" | "suggestion_box" | "meeting" | "survey" | "other";
+  source: string;
   description: string;
   status: "new" | "in_review" | "resolved" | "closed";
   resolution: string | null;
@@ -249,7 +267,7 @@ export interface FinancialServiceProviderRow {
   created_by: string;
   organization_id: string | null;
   name: string;
-  provider_type: "bank" | "microfinance" | "cooperative" | "saving_group" | "fintech" | "other";
+  provider_type: string;
   region: string | null;
   zone: string | null;
   contact_person: string | null;
@@ -587,6 +605,7 @@ export interface ParticipantRow {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  client_ref: string | null;
 }
 
 export interface PartnershipRow {
@@ -656,13 +675,24 @@ export interface ReflectionMeetingRow {
 export interface RolePermissionRow {
   id: string;
   organization_id: string | null;
-  role: "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+  role: string;
   module: string;
   action: string;
   allowed: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface RoleRow {
+  key: string;
+  label: string;
+  description: string | null;
+  is_system: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  id: string;
 }
 
 export interface SafeguardingCaseRow {
@@ -889,7 +919,7 @@ export interface TrainingEventRow {
   id: string;
   created_by: string;
   title: string;
-  training_type: "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other" | null;
+  training_type: string | null;
   start_date: string | null;
   end_date: string | null;
   partner_id: string | null;
@@ -910,7 +940,7 @@ export interface TrainingEventRow {
 export interface UserRoleRow {
   id: string;
   user_id: string;
-  role: "super_admin" | "programme_manager" | "monitoring_officer" | "field_officer" | "finance_officer" | "donor_viewer";
+  role: string;
 }
 
 export interface UserRow {
@@ -923,6 +953,8 @@ export interface UserRow {
   last_sign_in_at: string | null;
   created_at: string;
   updated_at: string;
+  failed_login_attempts: number;
+  locked_until: string | null;
 }
 
 export interface WorkplanActivityRow {

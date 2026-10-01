@@ -2,10 +2,35 @@ import type { AppRole } from "@/lib/types";
 /**
  * Copied from meal-mis-frontend/src/lib/permissions.ts (UI hiding only; the
  * backend matrix in common/permissions.ts is the enforcement point). Keep the
- * three copies in step when a role or module changes.
+ * three copies in step when a role or module changes. Roles themselves are data
+ * on the server (GET /admin/roles), loaded by AuthProvider.
  */
 
 export type { AppRole };
+
+/**
+ * The six built-in roles, whose default permissions are the MATRIX below. An
+ * administrator can create more (backend table public.roles); those start with
+ * no permissions and get only what the server's overrides grant them.
+ */
+export const SYSTEM_ROLES = [
+  "super_admin",
+  "programme_manager",
+  "monitoring_officer",
+  "field_officer",
+  "finance_officer",
+  "donor_viewer",
+] as const;
+export type SystemRole = (typeof SYSTEM_ROLES)[number];
+
+/** One entry of GET /admin/roles. */
+export interface RoleDefinition {
+  key: AppRole;
+  label: string;
+  description: string | null;
+  isSystem: boolean;
+  userCount?: number;
+}
 
 export type PermissionModule =
   | "participants"
@@ -24,7 +49,14 @@ export type PermissionModule =
   | "admin"
   | "material"
   | "empowerment"
-  | "sbcc";
+  | "sbcc"
+  // Split out of the module they used to borrow (backend migration 0049).
+  | "employment"
+  | "ysla"
+  | "institutions"
+  | "support_networks"
+  | "audit"
+  | "compliance";
 
 /** "approve" is the TOR's verification step (S6, Step 2), distinct from "write". */
 export type PermissionAction = "read" | "write" | "delete" | "approve";
@@ -41,7 +73,7 @@ export type PermissionAction = "read" | "write" | "delete" | "approve";
  */
 const MATRIX: Record<
   PermissionModule,
-  { read: AppRole[]; write: AppRole[]; approve?: AppRole[]; delete?: AppRole[] }
+  { read: SystemRole[]; write: SystemRole[]; approve?: SystemRole[]; delete?: SystemRole[] }
 > = {
   participants: {
     read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
@@ -144,31 +176,83 @@ const MATRIX: Record<
     write: ["programme_manager", "monitoring_officer", "field_officer"],
     delete: ["programme_manager", "monitoring_officer", "field_officer"],
   },
+  // Each copies the module it was split from, as the backend does.
+  employment: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer", "field_officer"],
+  },
+  ysla: {
+    read: ["programme_manager", "finance_officer", "donor_viewer"],
+    write: ["programme_manager", "finance_officer"],
+  },
+  institutions: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer"],
+    delete: ["programme_manager", "monitoring_officer"],
+  },
+  support_networks: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer", "field_officer"],
+    delete: ["programme_manager", "monitoring_officer", "field_officer"],
+  },
+  audit: { read: ["programme_manager"], write: [] },
+  compliance: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: [],
+  },
 };
 
-/**
- * Roles *allowed* to hold national scope. Holding one is necessary but not
- * sufficient — see isGlobalScope below.
- */
-export const GLOBAL_ROLES: AppRole[] = [
-  "super_admin",
-  "programme_manager",
-  "monitoring_officer",
-  "donor_viewer",
-];
+const BUILT_IN_LABELS: Record<SystemRole, string> = {
+  super_admin: "Super admin",
+  programme_manager: "Programme manager",
+  monitoring_officer: "Monitoring officer",
+  field_officer: "Field officer",
+  finance_officer: "Finance officer",
+  donor_viewer: "Donor viewer",
+};
 
-export function isGlobalRole(roles: AppRole[]): boolean {
-  return roles.some((r) => GLOBAL_ROLES.includes(r));
+const BUILT_IN_ROLES: RoleDefinition[] = SYSTEM_ROLES.map((key) => ({
+  key,
+  label: BUILT_IN_LABELS[key],
+  description: null,
+  isSystem: true,
+}));
+
+// The roles that exist, from GET /admin/roles (loaded by AuthProvider before the
+// app renders). Until then, the six built-in roles. UI only — the API decides.
+let roleRegistry: RoleDefinition[] = BUILT_IN_ROLES;
+
+export function setRoleDefinitions(roles: RoleDefinition[] | undefined): void {
+  roleRegistry = roles?.length ? roles : BUILT_IN_ROLES;
+}
+
+/** Every role key, in the server's order (built-in roles first). */
+export function listRoleKeys(): AppRole[] {
+  return roleRegistry.map((r) => r.key);
+}
+
+export function getRoleDefinitions(): RoleDefinition[] {
+  return roleRegistry;
+}
+
+/** What people see for a role. Falls back to the key for a role not loaded yet. */
+export function roleLabel(key: AppRole): string {
+  return roleRegistry.find((r) => r.key === key)?.label ?? key;
+}
+
+export function isSystemRole(key: AppRole): key is SystemRole {
+  return (SYSTEM_ROLES as readonly string[]).includes(key);
 }
 
 /**
  * National scope: sees every cluster's data. Mirrors the backend helper of the
  * same name, which is the enforcement point — this copy only shapes the UI.
  *
- * A user assigned to a cluster is scoped to it whatever their role.
+ * Decided per person: someone with a role and no cluster is national; anyone
+ * with a cluster is scoped to it, whatever their role.
  */
 export function isGlobalScope(roles: AppRole[], organizationId: string | null): boolean {
-  return organizationId === null && isGlobalRole(roles);
+  return organizationId === null && roles.length > 0;
 }
 
 // The server's overrides for this user's cluster (already merged: cluster over
@@ -191,6 +275,8 @@ export function isLockedCell(role: AppRole, module: PermissionModule): boolean {
 }
 
 function builtInAllows(role: AppRole, module: PermissionModule, action: PermissionAction): boolean {
+  // A created role is named nowhere in the matrix: only overrides grant it anything.
+  if (!isSystemRole(role)) return false;
   const entry = MATRIX[module];
   if (!entry) return false;
   // Absent means super admins only, for both: "unspecified" must mean "no".
@@ -231,18 +317,13 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   material: "Material & technical support",
   empowerment: "Women empowerment",
   sbcc: "SBCC campaigns",
+  employment: "Employment outcomes",
+  ysla: "YSLA & SACCOs",
+  institutions: "Institutions",
+  support_networks: "Mentors & networks",
+  audit: "Audit trail",
+  compliance: "Compliance",
 };
-
-export const ROLE_LABELS: Record<AppRole, string> = {
-  super_admin: "Super admin",
-  programme_manager: "Programme manager",
-  monitoring_officer: "Monitoring officer",
-  field_officer: "Field officer",
-  finance_officer: "Finance officer",
-  donor_viewer: "Donor viewer",
-};
-
-export const ALL_ROLES = Object.keys(ROLE_LABELS) as AppRole[];
 
 /**
  * Which roles this person may hand out. Mirrors `assertMayGrantRole` in the
@@ -253,8 +334,8 @@ export const ALL_ROLES = Object.keys(ROLE_LABELS) as AppRole[];
  * another programme manager included. `super_admin` is authority over the whole
  * programme rather than over a cluster, so only a super admin hands it out.
  */
-export function grantableRoles(roles: AppRole[]): AppRole[] {
-  return roles.includes("super_admin") ? ALL_ROLES : ALL_ROLES.filter((r) => r !== "super_admin");
+export function grantableRoles(roles: AppRole[], all: AppRole[] = listRoleKeys()): AppRole[] {
+  return roles.includes("super_admin") ? all : all.filter((r) => r !== "super_admin");
 }
 
 /** Server-side guard used by server functions (defence in depth on top of RLS). */

@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useQueue } from "@/lib/net";
 import { displayName, greeting, initialsOf } from "@/lib/user";
 import { Card, EmptyState, IconBox, Skeleton, StatCard, Text } from "@/components/ui";
-import { ROLE_LABELS } from "@/lib/permissions";
+import { roleLabel } from "@/lib/permissions";
 import { colors, radius, spacing, topics } from "@/theme";
 import { useSettings } from "@/lib/reference";
 
@@ -35,7 +35,7 @@ export default function Overview() {
 
   const { data, isLoading, isError, error, refetch, isRefetching, dataUpdatedAt } = stats;
   const name = displayName(profile, user?.email);
-  const role = roles.length ? roles.map((r) => ROLE_LABELS[r]).join(", ") : "Awaiting role assignment";
+  const role = roles.length ? roles.map((r) => roleLabel(r)).join(", ") : "Awaiting role assignment";
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
   const recent = [...(people.data ?? [])]
