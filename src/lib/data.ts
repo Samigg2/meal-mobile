@@ -112,7 +112,33 @@ export const verifyFayidaOtp = (national_id: string, otp: string) =>
     { national_id, otp },
   );
 
-export const listParticipants = () => api.get<ParticipantRow[]>("/participants");
+export type ParticipantFilters = {
+  /** Matches the name, participant ID or phone. */
+  q?: string;
+  status?: "active" | "inactive";
+  sex?: "male" | "female";
+  is_youth?: "yes" | "no";
+  disability?: "yes" | "no";
+  consent?: "yes" | "no";
+};
+
+export type ParticipantPage = {
+  rows: ParticipantRow[];
+  hasMore: boolean;
+  /** Only when asked for with `withTotal`. */
+  total: number | null;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * One page of participants, searched and filtered by the server. The whole
+ * register is never downloaded: at programme scale that is megabytes over a
+ * phone connection.
+ */
+export const listParticipantsPage = (
+  q: ParticipantFilters & { limit?: number; offset?: number; withTotal?: boolean } = {},
+) => api.get<ParticipantPage>("/participants/page", q);
 
 export const getParticipantDetail = (id: string) =>
   api.get<{

@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { ChevronRight, CircleAlert, UserPlus, UsersRound, X } from "lucide-react-native";
-import { listParticipants } from "@/lib/data";
+import { listParticipantsPage } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { initialsOf } from "@/lib/user";
 import {
@@ -36,6 +36,9 @@ const FILTER_LABELS: Record<keyof Filters, string> = {
   consent: "Consent",
 };
 
+/** Participants fetched per page as the list scrolls. */
+const PAGE_SIZE = 30;
+
 const yesNo = [
   { label: "Yes", value: "yes" as const },
   { label: "No", value: "no" as const },
@@ -48,27 +51,46 @@ export default function Participants() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>({});
   const [sheet, setSheet] = useState(false);
-  const { data = [], isLoading, isError, error, refetch, isRefetching } = useQuery({
-    queryKey: ["participants"],
-    queryFn: listParticipants,
+  // Wait for a pause in typing before asking the server.
+  const [term, setTerm] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Searched, filtered and paged by the server, a page at a time as the list
+  // scrolls — the whole register is never downloaded to the phone.
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["participants", "page", term, filters],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      listParticipantsPage({
+        q: term || undefined,
+        status: filters.status,
+        sex: filters.sex,
+        is_youth: filters.youth,
+        disability: filters.disability,
+        consent: filters.consent,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+        withTotal: pageParam === 0,
+      }),
+    getNextPageParam: (last) => (last.hasMore ? last.offset + last.limit : undefined),
   });
+  const filtered = data?.pages.flatMap((p) => p.rows) ?? [];
+  const total = data?.pages[0]?.total ?? filtered.length;
 
   const activeFilters = (Object.keys(filters) as (keyof Filters)[]).filter((k) => filters[k]);
-
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return data.filter((p) => {
-      if (filters.status && p.status !== filters.status) return false;
-      if (filters.sex && p.sex !== filters.sex) return false;
-      if (filters.youth && (filters.youth === "yes") !== !!p.is_youth) return false;
-      if (filters.disability && (filters.disability === "yes") !== !!p.disability) return false;
-      if (filters.consent && (filters.consent === "yes") !== !!p.consent_given) return false;
-      if (!term) return true;
-      return [p.full_name, p.participant_id, p.region, p.woreda, p.phone]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(term));
-    });
-  }, [data, search, filters]);
 
   const canRegister = can("participants", "write");
 
@@ -87,7 +109,7 @@ export default function Participants() {
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search name, ID or location"
+          placeholder="Search name, ID or phone"
           onFilterPress={() => setSheet(true)}
           filterCount={activeFilters.length}
         />
@@ -111,8 +133,8 @@ export default function Participants() {
         ) : null}
         {!isLoading ? (
           <Text style={styles.count}>
-            {filtered.length} participant{filtered.length === 1 ? "" : "s"}
-            {filtered.length !== data.length ? ` of ${data.length}` : ""}
+            {total.toLocaleString()} participant{total === 1 ? "" : "s"}
+            {term || activeFilters.length ? " found" : ""}
           </Text>
         ) : null}
       </View>
@@ -124,6 +146,13 @@ export default function Participants() {
           data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          ListFooterComponent={
+            isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={colors.primary} /> : null
+          }
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />
           }
@@ -291,6 +320,7 @@ const styles = StyleSheet.create({
   count: { fontSize: 13, color: colors.muted },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 96, flexGrow: 1 },
   separator: { height: spacing.md },
+  footer: { paddingVertical: spacing.lg },
   row: {
     flexDirection: "row",
     alignItems: "center",

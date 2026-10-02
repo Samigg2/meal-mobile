@@ -2,7 +2,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-n
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { CircleCheck, CloudUpload, RefreshCw, UserPlus, ClipboardList, type LucideIcon } from "lucide-react-native";
-import { getDashboardStats, listParticipants } from "@/lib/data";
+import { getDashboardStats, listParticipantsPage } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { useQueue } from "@/lib/net";
 import { displayName, greeting, initialsOf } from "@/lib/user";
@@ -30,17 +30,18 @@ export default function Overview() {
   const { profile, roles, user, can } = useAuth();
   const queued = useQueue();
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats });
-  // Shared with the Participants tab, so the recent list costs no extra request.
-  const people = useQuery({ queryKey: ["participants"], queryFn: listParticipants });
+  // Only the five newest — the server lists newest first.
+  const people = useQuery({
+    queryKey: ["participants", "recent"],
+    queryFn: () => listParticipantsPage({ limit: 5 }),
+  });
 
   const { data, isLoading, isError, error, refetch, isRefetching, dataUpdatedAt } = stats;
   const name = displayName(profile, user?.email);
   const role = roles.length ? roles.map((r) => roleLabel(r)).join(", ") : "Awaiting role assignment";
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
-  const recent = [...(people.data ?? [])]
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
-    .slice(0, 5);
+  const recent = people.data?.rows ?? [];
 
   const actions: { label: string; icon: LucideIcon; color: string; tint: string; onPress: () => void }[] = [
     ...(can("participants", "write")
