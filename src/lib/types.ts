@@ -105,6 +105,7 @@ export interface AuditLogRow {
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
+  organization_id: string | null;
 }
 
 export interface CustomFieldDefRow {
