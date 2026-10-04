@@ -201,6 +201,36 @@ export interface EmpowermentRecordRow {
   network_id: string | null;
 }
 
+export interface EnterprisePerformanceRow {
+  id: string;
+  enterprise_id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  period_label: string | null;
+  period_start: string;
+  period_end: string;
+  revenue: number;
+  profit: number | null;
+  currency: string;
+  employees_male: number;
+  employees_female: number;
+  youth_employees_male: number;
+  youth_employees_female: number;
+  employees_disability: number;
+  markets_count: number;
+  products_count: number;
+  main_markets: string | null;
+  data_source: string;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EnterpriseRow {
   id: string;
   created_by: string;
