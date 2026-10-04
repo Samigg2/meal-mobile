@@ -427,6 +427,7 @@ export interface IndicatorRow {
   responsible_id: string | null;
   disaggregation: string[];
   calculation_source: string;
+  aggregation: string;
 }
 
 export interface InstitutionRow {
@@ -452,6 +453,7 @@ export interface InstitutionRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  youth_led: boolean;
 }
 
 export interface KnowledgeResourceRow {
