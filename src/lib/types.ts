@@ -149,6 +149,7 @@ export interface EmploymentPlacementRow {
   woreda: string | null;
   kebele: string | null;
   custom: Record<string, unknown>;
+  verified_by: string | null;
 }
 
 export interface EmpowermentParticipantRow {
