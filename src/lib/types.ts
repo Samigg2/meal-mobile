@@ -125,6 +125,29 @@ export interface CustomFieldDefRow {
   updated_at: string;
 }
 
+export interface EmploymentFollowUpRow {
+  id: string;
+  placement_id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  round_months: number;
+  follow_up_date: string;
+  outcome: string;
+  monthly_income: number | null;
+  currency: string;
+  contract_type: string | null;
+  exit_reason: string | null;
+  contact_method: string;
+  notes: string | null;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EmploymentPlacementRow {
   id: string;
   created_by: string;
@@ -150,6 +173,8 @@ export interface EmploymentPlacementRow {
   kebele: string | null;
   custom: Record<string, unknown>;
   verified_by: string | null;
+  exit_date: string | null;
+  exit_reason: string | null;
 }
 
 export interface EmpowermentParticipantRow {
