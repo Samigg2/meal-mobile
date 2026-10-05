@@ -731,6 +731,14 @@ export interface ReflectionMeetingRow {
   youth_count: number;
 }
 
+export interface RoleDashboardRow {
+  id: string;
+  role: string;
+  dashboard: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface RolePermissionRow {
   id: string;
   organization_id: string | null;
