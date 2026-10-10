@@ -978,6 +978,7 @@ export interface TrainerRow {
   created_at: string;
   updated_at: string;
   organization_id: string | null;
+  active: boolean;
 }
 
 export interface TrainingAssessmentRow {
