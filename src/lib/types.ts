@@ -544,6 +544,8 @@ export interface LoanApplicationRow {
   created_at: string;
   updated_at: string;
   ysla_group_id: string | null;
+  decided_by: string | null;
+  decision_note: string | null;
 }
 
 export interface LoanDisbursementRow {
@@ -559,6 +561,10 @@ export interface LoanDisbursementRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
 }
 
 export interface LoanRepaymentRow {
@@ -574,6 +580,10 @@ export interface LoanRepaymentRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
 }
 
 export interface LookupValueRow {
@@ -614,6 +624,11 @@ export interface MaterialSupportRow {
   status_date: string | null;
   other_unit: string | null;
   custom: Record<string, unknown>;
+  distribution_batch_id: string | null;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
 }
 
 export interface OrganizationRow {
@@ -628,7 +643,7 @@ export interface OrganizationRow {
 
 export interface ParticipantRow {
   id: string;
-  created_by: string;
+  created_by: string | null;
   participant_id: string;
   full_name: string;
   national_id: string | null;
@@ -665,6 +680,9 @@ export interface ParticipantRow {
   reviewed_at: string | null;
   review_note: string | null;
   client_ref: string | null;
+  registration_source: string;
+  phone_verified_at: string | null;
+  national_id_check: string | null;
 }
 
 export interface PartnershipRow {
@@ -729,6 +747,39 @@ export interface ReflectionMeetingRow {
   updated_at: string;
   custom: Record<string, unknown>;
   youth_count: number;
+}
+
+export interface RegistrationCheckRow {
+  id: string;
+  kind: string;
+  subject: string;
+  code_hash: string | null;
+  attempts: number;
+  expires_at: string;
+  token_hash: string | null;
+  verified_at: string | null;
+  used_at: string | null;
+  result: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface RegistrationInviteRow {
+  id: string;
+  organization_id: string;
+  label: string;
+  token_hash: string;
+  expires_at: string;
+  max_uses: number | null;
+  uses: number;
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface RegistrationStatusTokenRow {
+  participant_id: string;
+  token_hash: string;
+  created_at: string;
 }
 
 export interface RoleDashboardRow {
