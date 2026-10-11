@@ -237,8 +237,11 @@ export const api = {
   post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body }, true),
   patch: <T>(path: string, body?: unknown) => send<T>(path, { method: "PATCH", body }, true),
   delete: <T>(path: string) => send<T>(path, { method: "DELETE" }, true),
+  /** No session: the public self-registration endpoints. Never refreshes or signs out. */
   anon: {
+    get: <T>(path: string, query?: Query) => send<T>(path, { method: "GET", query, anonymous: true }, false),
     post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body, anonymous: true }, false),
+    patch: <T>(path: string, body?: unknown) => send<T>(path, { method: "PATCH", body, anonymous: true }, false),
   },
 };
 

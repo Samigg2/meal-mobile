@@ -53,6 +53,8 @@ allowed).
 | Route | Purpose |
 | --- | --- |
 | `/sign-in` | email + password, tokens stored in the device keystore |
+| `/register` | a young person registers herself, no account: SMS code, optional National ID check, consent; staff review it (same public API as the web `/register`) |
+| `/registration-status` | the outcome of that registration, from a private token kept in the keystore; details can be corrected while awaiting review |
 | `/(tabs)` → Overview | headline programme figures, reach by region, pending-upload banner |
 | `/(tabs)` → Participants | searchable register, tap through to a profile |
 | `/(tabs)` → Surveys | active rounds available for collection |

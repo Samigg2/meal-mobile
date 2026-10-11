@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { Redirect } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import Constants from "expo-constants";
-import { ArrowRight, Lock, Mail, ShieldCheck } from "lucide-react-native";
+import { ArrowRight, Lock, Mail, ShieldCheck, UserPlus } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { Button, ErrorText, Field, Text, Toggle } from "@/components/ui";
 import { apiBaseUrl } from "@/lib/api";
+import { savedRegistration } from "@/lib/public-registration";
 import { colors, radius, spacing } from "@/theme";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,6 +22,12 @@ export default function SignIn() {
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  // A registration sent from this phone can be checked without an account.
+  const [hasRegistration, setHasRegistration] = useState(false);
+  useEffect(() => {
+    void savedRegistration.get().then((token) => setHasRegistration(!!token));
+  }, []);
 
   if (ready && user) return <Redirect href="/(tabs)" />;
 
@@ -130,6 +137,26 @@ export default function SignIn() {
               loading={loading}
               disabled={!email || !password}
             />
+          </View>
+
+          {/* Young people register themselves here; staff review every registration. */}
+          <View style={styles.selfRegister}>
+            <Text style={styles.selfRegisterText}>New to RAYEE II and not staff?</Text>
+            <Button
+              title="Register yourself"
+              variant="outline"
+              icon={UserPlus}
+              onPress={() => router.push("/register")}
+            />
+            {hasRegistration ? (
+              <Text
+                accessibilityRole="link"
+                style={styles.forgot}
+                onPress={() => router.push("/registration-status")}
+              >
+                Check my registration
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.partnersBlock}>
@@ -265,6 +292,8 @@ const styles = StyleSheet.create({
   form: { gap: spacing.lg },
   optionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: -spacing.xs },
   forgot: { fontSize: 13, fontWeight: "600", color: colors.primary, paddingVertical: 10 },
+  selfRegister: { gap: spacing.sm, alignItems: "stretch" },
+  selfRegisterText: { fontSize: 13, color: colors.muted, textAlign: "center" },
 
   partnersBlock: { gap: spacing.md, marginTop: "auto" },
   partnersLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

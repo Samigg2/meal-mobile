@@ -224,6 +224,10 @@ export interface EmpowermentRecordRow {
   outcome_tags: string[];
   change_tags: string[];
   network_id: string | null;
+  end_date: string | null;
+  follow_up_due_date: string | null;
+  follow_up_done_date: string | null;
+  follow_up_result: string | null;
 }
 
 export interface EnterprisePerformanceRow {
@@ -356,7 +360,7 @@ export interface GovernanceEngagementRow {
   created_by: string;
   organization_id: string | null;
   title: string;
-  engagement_type: "stakeholder_meeting" | "policy_dialogue" | "advocacy_action" | "coordination_forum" | "consultation" | "other";
+  engagement_type: string;
   engagement_date: string;
   location: string | null;
   region: string | null;
@@ -436,7 +440,7 @@ export interface InstitutionRow {
   created_by: string;
   institution_name: string;
   institution_type: string;
-  level: string;
+  level: string | null;
   mandate: string | null;
   region: string | null;
   zone: string | null;
@@ -688,7 +692,7 @@ export interface ParticipantRow {
 export interface PartnershipRow {
   id: string;
   created_by: string;
-  partner_name: string;
+  partner_name: string | null;
   partner_type: string | null;
   agreement_type: string | null;
   start_date: string | null;
@@ -705,7 +709,7 @@ export interface PartnershipRow {
   woreda: string | null;
   kebele: string | null;
   custom: Record<string, unknown>;
-  institution_id: string | null;
+  institution_id: string;
   sector_focus: string | null;
   geographic_scope: string | null;
   partnership_objective: string | null;
@@ -714,6 +718,9 @@ export interface PartnershipRow {
   renewal_date: string | null;
   in_kind_contribution_value: number | null;
   institutional_strengthening_support: boolean;
+  direction: string;
+  support_areas: string[];
+  agreement_title: string;
 }
 
 export interface ProfileRow {
@@ -867,6 +874,19 @@ export interface SbccActivityRow {
   reach_male_youth: number | null;
   reach_basis: string;
   evaluation_sample_size: number | null;
+}
+
+export interface SupportNetworkMemberRow {
+  id: string;
+  organization_id: string | null;
+  network_id: string;
+  participant_id: string;
+  joined_date: string;
+  status: string;
+  exit_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SupportNetworkRow {

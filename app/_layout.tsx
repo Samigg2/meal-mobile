@@ -51,6 +51,9 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+            {/* No session needed: a young person registering herself. */}
+            <Stack.Screen name="register" options={{ title: "Register yourself" }} />
+            <Stack.Screen name="registration-status" options={{ title: "My registration" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="participants/new" options={{ title: "Register participant" }} />
             <Stack.Screen name="participants/[id]" options={{ title: "Participant" }} />
