@@ -4,12 +4,19 @@ import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleCheck, Clock, Save, XCircle } from "lucide-react-native";
 import {
+  chosenWoreda,
+  getRegistrationOptions,
   getRegistrationStatus,
   savedRegistration,
+  splitWoreda,
   updateRegistration,
+  zonesOf,
+  type RegistrationAnswers,
+  type RegistrationOptions,
   type RegistrationState,
   type RegistrationStatus,
 } from "@/lib/public-registration";
+import { AnswerPickers, PlacePickers } from "@/components/registration-fields";
 import { ApiError } from "@/lib/api";
 import { Button, ErrorText, Field, Loading, Section, Text, Toggle } from "@/components/ui";
 import { colors, spacing } from "@/lib/theme";
@@ -62,8 +69,16 @@ export default function RegistrationStatusScreen() {
   });
 
   const details = status.data?.details;
+  // The zone and woreda lists, needed only while the details can be corrected.
+  const options = useQuery({
+    queryKey: ["public-registration-options"],
+    queryFn: getRegistrationOptions,
+    enabled: !!status.data?.editable,
+  });
 
-  if (token === undefined || status.isLoading) return <Loading label="Checking…" />;
+  if (token === undefined || status.isLoading || (status.data?.editable && options.isLoading)) {
+    return <Loading label="Checking…" />;
+  }
   if (!token) {
     return (
       <View style={styles.center}>
@@ -109,6 +124,7 @@ export default function RegistrationStatusScreen() {
       {status.data.editable && details ? (
         <EditDetails
           details={details}
+          options={options.data}
           onSave={(data) => updateRegistration(token, data)}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ["registration-status", token] })}
         />
@@ -129,37 +145,63 @@ const styles = StyleSheet.create({
 });
 
 type Details = NonNullable<RegistrationStatus["details"]>;
-type Changes = { full_name: string; zone: string; woreda: string; kebele: string; disability: boolean };
+type Changes = { full_name: string; zone: string; woreda: string; kebele: string; disability: boolean } & RegistrationAnswers;
 
 /** The corrections form, starting from what was sent. */
 function EditDetails({
   details,
+  options,
   onSave,
   onSaved,
 }: {
   details: Details;
+  options: RegistrationOptions | undefined;
   onSave: (data: Changes) => Promise<unknown>;
   onSaved: () => void;
 }) {
+  const region = details.region ?? "";
   const [fullName, setFullName] = useState(details.full_name);
   const [zone, setZone] = useState(details.zone ?? "");
-  const [woreda, setWoreda] = useState(details.woreda ?? "");
+  const initial = splitWoreda(options, details.zone ?? "", details.woreda ?? "");
+  const [woreda, setWoreda] = useState(initial.woreda);
+  const [woredaOther, setWoredaOther] = useState(initial.woredaOther);
   const [kebele, setKebele] = useState(details.kebele ?? "");
   const [disability, setDisability] = useState(details.disability);
+  const [answers, setAnswers] = useState<RegistrationAnswers>({
+    education_level: details.education_level ?? undefined,
+    marital_status: details.marital_status ?? undefined,
+    vulnerability_category: details.vulnerability_category ?? undefined,
+  });
+  const woredaValue = chosenWoreda(options, zone.trim(), woreda, woredaOther);
 
   const save = useMutation({
     mutationFn: () =>
-      onSave({ full_name: fullName.trim(), zone: zone.trim(), woreda: woreda.trim(), kebele: kebele.trim(), disability }),
+      onSave({ full_name: fullName.trim(), zone: zone.trim(), woreda: woredaValue, kebele: kebele.trim(), disability, ...answers }),
     onSuccess: onSaved,
   });
 
   return (
     <Section title="Correct your details" description="You can change these until an officer reviews them.">
       <Field label="Full name" value={fullName} onChangeText={setFullName} />
-      <Field label="Zone" value={zone} onChangeText={setZone} />
-      <Field label="Woreda" value={woreda} onChangeText={setWoreda} />
+      <PlacePickers
+        options={options}
+        region={region}
+        zone={zone}
+        woreda={woreda}
+        woredaOther={woredaOther}
+        onZone={(v) => {
+          setZone(v);
+          if (zonesOf(options, region).length > 0) {
+            setWoreda("");
+            setWoredaOther("");
+          }
+        }}
+        onWoreda={setWoreda}
+        onWoredaOther={setWoredaOther}
+      />
       <Field label="Kebele" value={kebele} onChangeText={setKebele} />
       <Toggle label="I live with a disability" value={disability} onChange={setDisability} />
+      <AnswerPickers options={options} value={answers} onChange={setAnswers} />
       <ErrorText>{save.error ? (save.error as Error).message : null}</ErrorText>
       {save.isSuccess ? <Text style={styles.note}>Saved.</Text> : null}
       <Button
@@ -167,7 +209,7 @@ function EditDetails({
         icon={Save}
         onPress={() => save.mutate()}
         loading={save.isPending}
-        disabled={!fullName.trim() || !zone.trim() || !woreda.trim()}
+        disabled={!fullName.trim() || !zone.trim() || !woredaValue}
       />
     </Section>
   );

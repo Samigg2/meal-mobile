@@ -4,14 +4,19 @@ import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { IdCard, MapPin, Phone, Send, ShieldCheck, User } from "lucide-react-native";
 import {
+  chosenWoreda,
   getRegistrationOptions,
   savedRegistration,
+  splitWoreda,
   sendIdCode,
   sendPhoneCode,
   submitRegistration,
   verifyIdCode,
   verifyPhoneCode,
+  zonesOf,
+  type RegistrationAnswers,
 } from "@/lib/public-registration";
+import { AnswerPickers, PlacePickers } from "@/components/registration-fields";
 import { ApiError } from "@/lib/api";
 import { PHONE_RE, yearsAgo } from "@/lib/participant-form";
 import {
@@ -66,8 +71,10 @@ export default function Register() {
   const [cluster, setCluster] = useState("");
   const [zone, setZone] = useState("");
   const [woreda, setWoreda] = useState("");
+  const [woredaOther, setWoredaOther] = useState("");
   const [kebele, setKebele] = useState("");
   const [disability, setDisability] = useState(false);
+  const [answers, setAnswers] = useState<RegistrationAnswers>({});
   const [consent, setConsent] = useState(false);
 
   const sendPhone = useMutation({ mutationFn: () => sendPhoneCode(phone.trim()) });
@@ -86,9 +93,22 @@ export default function Register() {
       if (d.full_name && !fullName.trim()) setFullName(d.full_name);
       if (d.date_of_birth && !dob) setDob(d.date_of_birth);
       if (d.sex && !sex) setSex(d.sex);
+      // A zone or woreda goes into the list only if it is listed; a woreda that is not goes into "Other".
+      const places = options.data;
+      const reg = region || d.region || "";
       if (d.region && !region) setRegion(d.region);
-      if (d.zone && !zone.trim()) setZone(d.zone);
-      if (d.woreda && !woreda.trim()) setWoreda(d.woreda);
+      const regionZones = zonesOf(places, reg);
+      const z =
+        zone.trim() ||
+        (d.zone && reg === (d.region ?? "") && (regionZones.length === 0 || regionZones.some((o) => o.value === d.zone))
+          ? d.zone
+          : "");
+      if (z !== zone) setZone(z);
+      if (d.woreda && !chosenWoreda(places, z, woreda, woredaOther) && z === (d.zone ?? "")) {
+        const split = splitWoreda(places, z, d.woreda);
+        setWoreda(split.woreda);
+        setWoredaOther(split.woredaOther);
+      }
       if (d.kebele && !kebele.trim()) setKebele(d.kebele);
     },
   });
@@ -110,9 +130,10 @@ export default function Register() {
         kebele_id: kebeleId.trim() || undefined,
         region,
         zone: zone.trim(),
-        woreda: woreda.trim(),
+        woreda: chosenWoreda(options.data, zone.trim(), woreda, woredaOther),
         kebele: kebele.trim() || undefined,
         disability,
+        ...answers,
         organization_id: needsCluster ? cluster : undefined,
         consent_given: true,
         verification_token: phoneToken,
@@ -154,7 +175,7 @@ export default function Register() {
     !!region &&
     (!needsCluster || !!cluster) &&
     !!zone.trim() &&
-    !!woreda.trim() &&
+    !!chosenWoreda(options.data, zone.trim(), woreda, woredaOther) &&
     consent;
 
   return (
@@ -289,6 +310,7 @@ export default function Register() {
             initialYear={new Date().getFullYear() - 20}
           />
           <Toggle label="I live with a disability" value={disability} onChange={setDisability} />
+          <AnswerPickers options={options.data} value={answers} onChange={setAnswers} />
         </Section>
 
         <Section title="4. Where you live" icon={MapPin}>
@@ -300,6 +322,9 @@ export default function Register() {
             onChange={(v) => {
               setRegion(v);
               setCluster("");
+              setZone("");
+              setWoreda("");
+              setWoredaOther("");
             }}
           />
           {needsCluster ? (
@@ -312,8 +337,23 @@ export default function Register() {
               hint="Your region has more than one; ask an officer if unsure."
             />
           ) : null}
-          <Field label="Zone" required value={zone} onChangeText={setZone} />
-          <Field label="Woreda" required value={woreda} onChangeText={setWoreda} />
+          <PlacePickers
+            options={options.data}
+            region={region}
+            zone={zone}
+            woreda={woreda}
+            woredaOther={woredaOther}
+            onZone={(v) => {
+              setZone(v);
+              // A new zone from the list has its own woredas; typing a zone keeps what was typed.
+              if (zonesOf(options.data, region).length > 0) {
+                setWoreda("");
+                setWoredaOther("");
+              }
+            }}
+            onWoreda={setWoreda}
+            onWoredaOther={setWoredaOther}
+          />
           <Field label="Kebele" value={kebele} onChangeText={setKebele} />
         </Section>
 
