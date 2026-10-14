@@ -54,6 +54,18 @@ async function writeQueue(items: QueuedItem[]): Promise<void> {
   notify();
 }
 
+/**
+ * Runs queue changes one after another. Each is a read then a write with an
+ * await between, so two at once (a form saved offline while a sync marks an
+ * item) would let the later write erase what the earlier one added.
+ */
+let chain: Promise<unknown> = Promise.resolve();
+function locked<T>(change: () => Promise<T>): Promise<T> {
+  const run = chain.then(change, change);
+  chain = run.catch(() => undefined);
+  return run;
+}
+
 export async function enqueue(item: { kind: QueuedKind; label: string; payload: unknown }): Promise<QueuedItem> {
   const entry: QueuedItem = {
     ...item,
@@ -61,24 +73,44 @@ export async function enqueue(item: { kind: QueuedKind; label: string; payload: 
     createdAt: new Date().toISOString(),
     attempts: 0,
   };
-  await writeQueue([...(await readQueue()), entry]);
+  await locked(async () => writeQueue([...(await readQueue()), entry]));
   return entry;
 }
 
-export async function removeFromQueue(id: string): Promise<void> {
-  await writeQueue((await readQueue()).filter((item) => item.id !== id));
+export function removeFromQueue(id: string): Promise<void> {
+  return locked(async () => writeQueue((await readQueue()).filter((item) => item.id !== id)));
 }
 
-export async function clearQueue(): Promise<void> {
-  await writeQueue([]);
+export function clearQueue(): Promise<void> {
+  return locked(() => writeQueue([]));
 }
+
+function markFailed(id: string, message: string): Promise<void> {
+  return locked(async () =>
+    writeQueue(
+      (await readQueue()).map((i) => (i.id === id ? { ...i, attempts: i.attempts + 1, lastError: message } : i)),
+    ),
+  );
+}
+
+/** The sync in progress, so a second tap (or a second screen) joins it instead of sending everything twice. */
+let syncing: Promise<{ synced: number; failed: number }> | null = null;
 
 /**
  * Replays every queued item. Network failures leave the item queued; a rejection
  * from the API (validation, duplicate id, permission) is recorded against it so
  * the enumerator can see why it will not go through.
  */
-export async function syncQueue(): Promise<{ synced: number; failed: number }> {
+export function syncQueue(): Promise<{ synced: number; failed: number }> {
+  if (!syncing) {
+    syncing = replay().finally(() => {
+      syncing = null;
+    });
+  }
+  return syncing;
+}
+
+async function replay(): Promise<{ synced: number; failed: number }> {
   let synced = 0;
   let failed = 0;
   for (const item of await readQueue()) {
@@ -97,10 +129,7 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
               ? `Not uploaded: ${error.message}. Discard this copy if it is the same person.`
               : error.problems.join("; ")
           : "Sync failed";
-      const items = await readQueue();
-      await writeQueue(
-        items.map((i) => (i.id === item.id ? { ...i, attempts: i.attempts + 1, lastError: message } : i)),
-      );
+      await markFailed(item.id, message);
       failed += 1;
     }
   }
