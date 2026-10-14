@@ -58,11 +58,13 @@ allowed).
 | `/(tabs)` → Overview | headline programme figures, reach by region, pending-upload banner |
 | `/(tabs)` → Participants | searchable register, tap through to a profile |
 | `/(tabs)` → Surveys | active rounds available for collection |
-| `/(tabs)` → More | profile, role, per-module access, offline queue, sign out |
+| `/(tabs)` → More | profile, role, offline queue, a link to Your access, sign out |
 | `/participants/new` | registration form with consent capture (offline capable) |
 | `/participants/[id]` | profile, enterprise linkage, training history |
+| `/participants/edit/[id]` | correct a participant's details (needs a connection; not queued) |
 | `/surveys/[id]` | response capture against the round's question set (offline capable) |
-| `/sync` | review, upload or discard what is queued on the device |
+| `/sync` | review, upload or discard what is queued on the device; **Download for offline** keeps the reference lists and active survey forms on the device |
+| `/access` | Your access: what the signed-in role can see and change, per module |
 
 ## Offline capture
 
@@ -72,14 +74,22 @@ participant ID, insufficient permission) is surfaced to the enumerator
 immediately instead, so bad data is not silently parked on the device.
 
 Queued items survive app restarts. Syncing replays them in order; anything the
-API rejects stays in the queue with the reason attached.
+API rejects stays in the queue with the reason attached. Changes to the queue
+run one at a time, so a form saved while a sync is running is never lost, and
+starting a sync while one is running joins it rather than sending everything
+twice. Each submission carries a device-made `client_ref`, so the API returns
+the stored record instead of saving a second copy when one is replayed.
+
+Forms work offline only once their lists are on the device: use **Download for
+offline** on the sync screen while connected (reference lists and the active
+survey forms).
 
 ## Authorization
 
 `useAuth().can(module, action)` hides actions the signed-in role may not
-perform, and the More tab shows the effective access per module. This is
-presentation only — the API enforces roles and organization scoping on every
-request.
+perform, and the Your access screen (`/access`, from the More tab) shows the
+effective access per module. This is presentation only — the API enforces
+roles and organization scoping on every request.
 
 ## Notes
 
