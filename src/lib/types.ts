@@ -292,6 +292,30 @@ export interface EnterpriseRow {
   custom: Record<string, unknown>;
 }
 
+export interface EvaluationRow {
+  id: string;
+  organization_id: string | null;
+  title: string;
+  evaluation_type: string;
+  purpose: string | null;
+  planned_start: string | null;
+  planned_end: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  status: string;
+  conducted_by: string;
+  evaluator_name: string | null;
+  lead_id: string | null;
+  validated: boolean;
+  validation_date: string | null;
+  validation_notes: string | null;
+  key_findings: string | null;
+  custom: Record<string, unknown>;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FeedbackRow {
   id: string;
   created_by: string | null;
@@ -602,6 +626,8 @@ export interface LookupValueRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface MaterialSupportRow {
@@ -987,6 +1013,7 @@ export interface SurveyTemplateRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  evaluation_id: string | null;
 }
 
 export interface TrainerRow {

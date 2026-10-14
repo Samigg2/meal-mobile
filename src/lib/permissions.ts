@@ -56,7 +56,8 @@ export type PermissionModule =
   | "institutions"
   | "support_networks"
   | "audit"
-  | "compliance";
+  | "compliance"
+  | "evaluations";
 
 /** "approve" is the TOR's verification step (S6, Step 2), distinct from "write". */
 export type PermissionAction = "read" | "write" | "delete" | "approve";
@@ -200,6 +201,12 @@ const MATRIX: Record<
     read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: [],
   },
+  // The evaluations register (TOR §5, Annex 2), 2026-10-14.
+  evaluations: {
+    read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
+    write: ["programme_manager", "monitoring_officer"],
+    delete: ["programme_manager", "monitoring_officer"],
+  },
 };
 
 const BUILT_IN_LABELS: Record<SystemRole, string> = {
@@ -323,6 +330,7 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   support_networks: "Mentors & networks",
   audit: "Audit trail",
   compliance: "Compliance",
+  evaluations: "Evaluations",
 };
 
 /**
