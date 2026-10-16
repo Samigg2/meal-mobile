@@ -110,7 +110,7 @@ export interface AuditLogRow {
 
 export interface CustomFieldDefRow {
   id: string;
-  organization_id: string;
+  organization_id: string | null;
   spec_key: string;
   name: string;
   label: string;
@@ -123,6 +123,7 @@ export interface CustomFieldDefRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  help: string | null;
 }
 
 export interface EmploymentFollowUpRow {
@@ -184,6 +185,7 @@ export interface EmpowermentParticipantRow {
   participant_id: string;
   created_at: string;
   created_by: string | null;
+  days_attended: number;
 }
 
 export interface EmpowermentRecordRow {
@@ -228,6 +230,8 @@ export interface EmpowermentRecordRow {
   follow_up_due_date: string | null;
   follow_up_done_date: string | null;
   follow_up_result: string | null;
+  count_completed: number | null;
+  count_partial: number | null;
 }
 
 export interface EnterprisePerformanceRow {
@@ -304,16 +308,17 @@ export interface EvaluationRow {
   actual_end: string | null;
   status: string;
   conducted_by: string;
-  evaluator_name: string | null;
   lead_id: string | null;
-  validated: boolean;
-  validation_date: string | null;
-  validation_notes: string | null;
   key_findings: string | null;
   custom: Record<string, unknown>;
   created_by: string;
   created_at: string;
   updated_at: string;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  evaluator_institution_id: string | null;
 }
 
 export interface FeedbackRow {
@@ -456,6 +461,8 @@ export interface IndicatorRow {
   disaggregation: string[];
   calculation_source: string;
   aggregation: string;
+  custom_field_id: string | null;
+  custom_measure: string | null;
 }
 
 export interface InstitutionRow {
@@ -482,6 +489,7 @@ export interface InstitutionRow {
   created_at: string;
   updated_at: string;
   youth_led: boolean;
+  custom: Record<string, unknown>;
 }
 
 export interface KnowledgeResourceRow {
@@ -499,41 +507,43 @@ export interface KnowledgeResourceRow {
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
+  outcome_area: string | null;
+  question_ids: string[];
+  evaluation_id: string | null;
+  meeting_id: string | null;
+  language: string | null;
+  consent_obtained: boolean;
+  shared_on: string | null;
+  shared_how: string[];
+  shared_with: string | null;
 }
 
 export interface LearningAgendaItemRow {
   id: string;
   organization_id: string | null;
   question: string;
-  rationale: string | null;
-  theme: string;
   method: string | null;
-  owner: string | null;
   status: string;
-  progress_percent: number;
   due_date: string | null;
-  findings: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
   owner_id: string | null;
   collaborators: string | null;
-  schedule_years: string[];
   dissemination: string[];
-  product_resource_id: string | null;
+  outcome_area: string | null;
+  schedule_quarters: string[];
 }
 
 export interface LessonsLearnedRow {
   id: string;
   organization_id: string | null;
   title: string;
-  category: string;
   source: string;
   context: string | null;
   lesson: string;
   recommendation: string | null;
-  action_taken: string | null;
   status: string;
   priority: string;
   region: string | null;
@@ -548,7 +558,8 @@ export interface LessonsLearnedRow {
   learning_topic: string | null;
   issues_raised: string | null;
   change_effected: string | null;
-  responsible_id: string | null;
+  agenda_item_id: string | null;
+  meeting_id: string | null;
 }
 
 export interface LoanApplicationRow {
@@ -641,7 +652,6 @@ export interface MaterialSupportRow {
   quantity: number;
   unit: string | null;
   unit_value: number | null;
-  currency: string;
   distribution_date: string;
   condition: string;
   status: string;
@@ -768,18 +778,21 @@ export interface ReflectionMeetingRow {
   title: string;
   meeting_type: string;
   meeting_date: string;
-  location: string | null;
   participants_count: number;
   female_count: number;
   key_discussion: string | null;
   decisions: string | null;
-  action_points: string | null;
   follow_up_status: string;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   custom: Record<string, unknown>;
   youth_count: number;
+  period_reviewed: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  question_ids: string[];
 }
 
 export interface RegistrationCheckRow {
@@ -846,6 +859,20 @@ export interface RoleRow {
   id: string;
 }
 
+export interface SaccoMembershipRow {
+  id: string;
+  organization_id: string | null;
+  provider_id: string;
+  participant_id: string;
+  joined_date: string;
+  status: string;
+  exit_date: string | null;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SafeguardingCaseRow {
   id: string;
   created_by: string;
@@ -855,7 +882,6 @@ export interface SafeguardingCaseRow {
   reported_date: string;
   incident_date: string | null;
   description: string | null;
-  actions_taken: string | null;
   confidential_notes: string | null;
   created_at: string;
   updated_at: string;
@@ -932,6 +958,7 @@ export interface SupportNetworkRow {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  custom: Record<string, unknown>;
 }
 
 export interface SurveyAnswerRow {
@@ -1127,7 +1154,7 @@ export interface WorkplanActivityRow {
   id: string;
   created_by: string;
   organization_id: string | null;
-  indicator_id: string | null;
+  indicator_id: string;
   title: string;
   description: string | null;
   region: string | null;
@@ -1146,6 +1173,22 @@ export interface WorkplanActivityRow {
   woreda: string | null;
 }
 
+export interface YslaCycleRow {
+  id: string;
+  organization_id: string | null;
+  group_id: string;
+  cycle_number: number;
+  start_date: string;
+  share_price: number;
+  share_out_date: string | null;
+  share_out_amount: number | null;
+  status: string;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface YslaGroupMemberRow {
   id: string;
   organization_id: string | null;
@@ -1155,8 +1198,6 @@ export interface YslaGroupMemberRow {
   created_at: string;
   created_by: string | null;
   role: string;
-  individual_savings_balance: number;
-  individual_loans_outstanding: number;
   status: string;
   exit_date: string | null;
   updated_at: string;
@@ -1167,18 +1208,14 @@ export interface YslaGroupRow {
   organization_id: string | null;
   created_by: string | null;
   group_name: string;
-  group_type: string;
   formation_date: string | null;
   region: string | null;
   zone: string | null;
   woreda: string | null;
   kebele: string | null;
-  share_value: number | null;
-  share_out_date: string | null;
   meeting_frequency: string | null;
   total_savings: number | null;
   total_loans: number | null;
-  loan_repayment_rate: number | null;
   status: string;
   notes: string | null;
   created_at: string;
@@ -1191,4 +1228,27 @@ export interface YslaGroupRow {
   chairperson_id: string | null;
   secretary_id: string | null;
   treasurer_id: string | null;
+  last_report_month: string | null;
+}
+
+export interface YslaReportRow {
+  id: string;
+  organization_id: string | null;
+  group_id: string;
+  cycle_id: string;
+  report_month: string;
+  savings_to_date: number;
+  loans_out_count: number;
+  loans_out_value: number;
+  cash_in_box: number;
+  social_fund: number;
+  meetings_held: number;
+  notes: string | null;
+  status: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  rejection_reason: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
