@@ -185,6 +185,8 @@ const MATRIX: Record<
   ysla: {
     read: ["programme_manager", "finance_officer", "donor_viewer"],
     write: ["programme_manager", "finance_officer"],
+    // Verifying a group's monthly report: a second person, not who entered it.
+    approve: ["programme_manager"],
   },
   institutions: {
     read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
