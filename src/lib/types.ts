@@ -65,6 +65,21 @@ export interface ActionItemRow {
   owner_id: string | null;
 }
 
+export interface ApiKeyRow {
+  id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  roles: string[];
+  organization_id: string | null;
+  datasets: string[];
+  created_by: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+}
+
 export interface AppSettingRow {
   id: string;
   key: string;
@@ -136,7 +151,6 @@ export interface EmploymentFollowUpRow {
   outcome: string;
   monthly_income: number | null;
   currency: string;
-  contract_type: string | null;
   exit_reason: string | null;
   contact_method: string;
   notes: string | null;
@@ -147,6 +161,7 @@ export interface EmploymentFollowUpRow {
   custom: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  job_ended_on: string | null;
 }
 
 export interface EmploymentPlacementRow {
@@ -163,7 +178,6 @@ export interface EmploymentPlacementRow {
   end_date: string | null;
   monthly_income: number | null;
   currency: string;
-  contract_type: string | null;
   status: "placed" | "retained" | "exited" | "verified" | "pending_verification";
   verified_on: string | null;
   notes: string | null;
@@ -232,6 +246,7 @@ export interface EmpowermentRecordRow {
   follow_up_result: string | null;
   count_completed: number | null;
   count_partial: number | null;
+  other_women_count: number;
 }
 
 export interface EnterprisePerformanceRow {
@@ -294,6 +309,11 @@ export interface EnterpriseRow {
   latitude: number | null;
   longitude: number | null;
   custom: Record<string, unknown>;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  submitted_by: string | null;
 }
 
 export interface EvaluationRow {
@@ -350,6 +370,11 @@ export interface FeedbackRow {
   referred_to: string | null;
   staff_responsible_id: string | null;
   date_closed: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  referred: boolean;
 }
 
 export interface FinancialServiceProviderRow {
@@ -373,6 +398,8 @@ export interface FinancialServiceProviderRow {
   offers_youth_products: boolean;
   offers_women_products: boolean;
   other_provider_type: string | null;
+  interest_free: boolean;
+  default_interest_rate: number | null;
 }
 
 export interface GovernanceAttendeeRow {
@@ -585,6 +612,7 @@ export interface LoanApplicationRow {
   ysla_group_id: string | null;
   decided_by: string | null;
   decision_note: string | null;
+  service_fee: number | null;
 }
 
 export interface LoanDisbursementRow {
@@ -641,6 +669,32 @@ export interface LookupValueRow {
   longitude: number | null;
 }
 
+export interface MaterialDistributionRow {
+  id: string;
+  organization_id: string | null;
+  name: string;
+  support_type: string;
+  other_support_type: string | null;
+  item_description: string;
+  quantity: number;
+  unit: string | null;
+  other_unit: string | null;
+  unit_value: number | null;
+  distribution_date: string;
+  partner_id: string | null;
+  condition: string;
+  is_returnable: boolean;
+  review_status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  submitted_by: string | null;
+  custom: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MaterialSupportRow {
   id: string;
   organization_id: string | null;
@@ -664,11 +718,18 @@ export interface MaterialSupportRow {
   status_date: string | null;
   other_unit: string | null;
   custom: Record<string, unknown>;
-  distribution_batch_id: string | null;
   review_status: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  distribution_id: string;
+}
+
+export interface NotificationSeenRow {
+  user_id: string;
+  queue_key: string;
+  record_id: string;
+  seen_at: string;
 }
 
 export interface OrganizationRow {
@@ -723,6 +784,9 @@ export interface ParticipantRow {
   registration_source: string;
   phone_verified_at: string | null;
   national_id_check: string | null;
+  submitted_by: string | null;
+  disability_type_other: string | null;
+  vulnerability_category_other: string | null;
 }
 
 export interface PartnershipRow {
@@ -1187,6 +1251,11 @@ export interface YslaCycleRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  share_out_status: string | null;
+  share_out_by: string | null;
+  share_out_verified_by: string | null;
+  share_out_verified_at: string | null;
+  share_out_rejection_reason: string | null;
 }
 
 export interface YslaGroupMemberRow {
