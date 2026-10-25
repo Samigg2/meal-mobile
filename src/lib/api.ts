@@ -52,6 +52,18 @@ export class ApiError extends Error {
     return Array.isArray(list) && list.length ? list.map(String) : [this.message];
   }
 
+  /** The API's checks filed under the field each is about, so a form shows them there. */
+  get fieldErrors(): Record<string, string> {
+    const issues = (this.details as { issues?: unknown } | undefined)?.issues;
+    const found: Record<string, string> = {};
+    if (!Array.isArray(issues)) return found;
+    for (const issue of issues as { path?: unknown[]; message?: string }[]) {
+      const key = issue.path?.length ? String(issue.path[0]) : "";
+      if (key && issue.message && !found[key]) found[key] = issue.message;
+    }
+    return found;
+  }
+
   /** True when the request never reached the API (offline, DNS, timeout). */
   get isNetworkError(): boolean {
     return this.status === 0;
@@ -124,19 +136,31 @@ export function getRefreshToken(): string | null {
   return refreshToken;
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+/**
+ * "rejected": the server refused the refresh token, so the session is over.
+ * "network": no answer, a timeout, or the server failing (5xx, 429). The
+ * session is kept: a weak signal in the field must not sign the officer out
+ * and lose what they were saving, which goes to the queue instead.
+ */
+type RefreshOutcome = "ok" | "rejected" | "network";
 
-async function refreshSession(): Promise<boolean> {
-  if (!refreshToken) return false;
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+async function refreshSession(): Promise<RefreshOutcome> {
+  if (!refreshToken) return "rejected";
   if (!refreshInFlight) {
-    refreshInFlight = (async () => {
+    refreshInFlight = (async (): Promise<RefreshOutcome> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const response = await fetch(`${BASE_URL}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),
+          signal: controller.signal,
         });
-        if (!response.ok) return false;
+        if (response.status >= 500 || response.status === 429) return "network";
+        if (!response.ok) return "rejected";
         const session = (await response.json()) as SessionResponse;
         accessToken = session.accessToken;
         refreshToken = session.refreshToken;
@@ -144,10 +168,11 @@ async function refreshSession(): Promise<boolean> {
           secureStorage.set(ACCESS_KEY, session.accessToken),
           secureStorage.set(REFRESH_KEY, session.refreshToken),
         ]);
-        return true;
+        return "ok";
       } catch {
-        return false;
+        return "network";
       } finally {
+        clearTimeout(timer);
         setTimeout(() => {
           refreshInFlight = null;
         }, 0);
@@ -209,7 +234,10 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
   }
 
   if (response.status === 401 && allowRefresh && !options.anonymous) {
-    if (await refreshSession()) return send<T>(path, options, false);
+    const outcome = await refreshSession();
+    if (outcome === "ok") return send<T>(path, options, false);
+    // Treated as offline: the caller queues the submission, the session stays.
+    if (outcome === "network") throw new ApiError(0, "Network request failed while renewing the session");
     await clearSession();
     throw new ApiError(401, "Your session has expired. Please sign in again.");
   }

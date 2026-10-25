@@ -50,6 +50,7 @@ export function DateField({
   min,
   max,
   initialYear,
+  clearable,
 }: {
   label: string;
   required?: boolean;
@@ -65,6 +66,8 @@ export function DateField({
   max?: string;
   /** Year to open on when there is no value yet (e.g. twenty years ago for a birth date). */
   initialYear?: number;
+  /** An optional date: shows "Clear date" once one is picked. */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -86,6 +89,11 @@ export function DateField({
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      {clearable && value ? (
+        <Pressable accessibilityRole="button" onPress={() => onChange("")} hitSlop={8}>
+          <Text style={styles.clear}>Clear date</Text>
+        </Pressable>
+      ) : null}
 
       {open ? (
         <CalendarSheet
@@ -328,6 +336,7 @@ const styles = StyleSheet.create({
   placeholder: { color: colors.faint },
   error: { fontSize: 12, color: colors.danger },
   hint: { fontSize: 12, color: colors.muted, lineHeight: 17 },
+  clear: { fontSize: 13, fontWeight: "600", color: colors.primary },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.3 },
 

@@ -4,7 +4,7 @@ import { ClipboardList, LayoutDashboard, Menu, UsersRound, type LucideIcon } fro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { AppHeader } from "@/components/app-header";
-import { Loading } from "@/components/ui";
+import { StartScreen } from "@/components/brand-splash";
 import { colors, fontFamilies } from "@/theme";
 
 /** Tab icon; the active tab gets a small primary-tinted pill behind it. */
@@ -31,7 +31,7 @@ export default function TabsLayout() {
   const { ready, user } = useAuth();
   const insets = useSafeAreaInsets();
 
-  if (!ready) return <Loading label="Starting…" />;
+  if (!ready) return <StartScreen />;
   if (!user) return <Redirect href="/sign-in" />;
 
   return (

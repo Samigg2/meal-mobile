@@ -1,34 +1,36 @@
-import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, CloudCheck, CloudUpload, MessageSquare, ShieldCheck, ListChecks, User } from "lucide-react-native";
+import { Bell, CloudCheck, CloudUpload } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getDashboardStats } from "@/lib/data";
+import { getNotifications } from "@/lib/data";
 import { useQueue } from "@/lib/net";
-import { BottomSheet, ListRow, Text } from "@/components/ui";
-import { colors, spacing, topics } from "@/theme";
+import { useAuth } from "@/lib/auth";
+import { displayName, initialsOf } from "@/lib/user";
+import { Text } from "@/components/ui";
+import { colors, spacing } from "@/theme";
 
 /**
  * Header for the tab screens: white, safe-area aware, 56px, bottom border.
- * Title on the left; sync status, notifications and the profile avatar on the
- * right. Settings live in More, reached from the avatar.
+ * Title on the left; sync status and notifications (each a soft coloured circle)
+ * and the profile avatar on the right. The cloud opens the offline queue, the bell
+ * the notifications; the avatar opens My profile; settings live in More.
  */
 export function AppHeader({ title }: { title: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queued = useQueue();
-  const [bellOpen, setBellOpen] = useState(false);
+  const { profile, user } = useAuth();
 
-  // Shares the Overview query, so this costs no extra request.
-  const { data: stats } = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats });
-
-  const attention = [
-    { label: "Feedback awaiting response", count: stats?.openFeedback ?? 0, icon: MessageSquare, color: topics.surveys },
-    { label: "Open safeguarding cases", count: stats?.openSafeguarding ?? 0, icon: ShieldCheck, color: topics.safeguarding },
-    { label: "Open action items", count: stats?.openActions ?? 0, icon: ListChecks, color: topics.trainings },
-  ].filter((i) => i.count > 0);
-  const notifications = attention.reduce((n, i) => n + i.count, 0);
+  // The same count the web bell shows (not yet opened items); offline it keeps the last number.
+  const { data: notes } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: getNotifications,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const notifications = notes?.total ?? 0;
   const pending = queued.length;
 
   return (
@@ -44,11 +46,13 @@ export function AppHeader({ title }: { title: string }) {
           onPress={() => router.push("/sync")}
           style={styles.iconButton}
         >
-          {pending > 0 ? (
-            <CloudUpload size={22} color={colors.warning} />
-          ) : (
-            <CloudCheck size={22} color={colors.success} />
-          )}
+          <View style={[styles.circle, { backgroundColor: pending > 0 ? colors.warningSoft : colors.successSoft }]}>
+            {pending > 0 ? (
+              <CloudUpload size={19} color={colors.warning} strokeWidth={2.2} />
+            ) : (
+              <CloudCheck size={19} color={colors.success} strokeWidth={2.2} />
+            )}
+          </View>
           {pending > 0 ? (
             <View style={[styles.badge, { backgroundColor: colors.warning }]}>
               <Text style={styles.badgeText}>{pending > 9 ? "9+" : pending}</Text>
@@ -58,11 +62,13 @@ export function AppHeader({ title }: { title: string }) {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Notifications"
-          onPress={() => setBellOpen(true)}
+          accessibilityLabel={notifications ? `Notifications, ${notifications} new` : "Notifications"}
+          onPress={() => router.push("/notifications")}
           style={styles.iconButton}
         >
-          <Bell size={22} color={colors.secondary} />
+          <View style={[styles.circle, { backgroundColor: colors.primarySoft }]}>
+            <Bell size={19} color={colors.primary} strokeWidth={2.2} />
+          </View>
           {notifications > 0 ? (
             <View style={[styles.badge, { backgroundColor: colors.danger }]}>
               <Text style={styles.badgeText}>{notifications > 9 ? "9+" : notifications}</Text>
@@ -72,49 +78,15 @@ export function AppHeader({ title }: { title: string }) {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Profile"
-          onPress={() => router.navigate("/(tabs)/more")}
+          accessibilityLabel="My profile"
+          onPress={() => router.push("/profile")}
           style={styles.avatarWrap}
         >
           <View style={styles.avatar}>
-            <User size={17} color={colors.primary} strokeWidth={2.2} />
+            <Text style={styles.avatarText}>{initialsOf(displayName(profile, user?.email))}</Text>
           </View>
         </Pressable>
       </View>
-
-      <BottomSheet visible={bellOpen} onClose={() => setBellOpen(false)} title="Needs attention">
-        {attention.length === 0 && pending === 0 ? (
-          <Text style={styles.empty}>Nothing needs attention right now.</Text>
-        ) : (
-          <>
-            {pending > 0 ? (
-              <ListRow
-                icon={CloudUpload}
-                color={colors.warning}
-                tint={colors.warningSoft}
-                title={`${pending} submission${pending === 1 ? "" : "s"} waiting to upload`}
-                subtitle="Tap to open the offline queue"
-                onPress={() => {
-                  setBellOpen(false);
-                  router.push("/sync");
-                }}
-              />
-            ) : null}
-            {attention.map((item, i) => (
-              <ListRow
-                key={item.label}
-                icon={item.icon}
-                color={item.color.color}
-                tint={item.color.tint}
-                title={item.label}
-                right={<Text style={styles.count}>{item.count}</Text>}
-                chevron={false}
-                last={i === attention.length - 1}
-              />
-            ))}
-          </>
-        )}
-      </BottomSheet>
     </View>
   );
 }
@@ -129,13 +101,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  title: { flex: 1, fontSize: 20, fontWeight: "700", color: colors.text, letterSpacing: -0.3 },
+  title: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
   actions: { flexDirection: "row", alignItems: "center", gap: 2 },
-  iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  circle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badge: {
     position: "absolute",
-    top: 6,
-    right: 5,
+    top: 3,
+    right: 2,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -144,15 +134,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   badgeText: { color: colors.white, fontSize: 10, fontWeight: "700" },
-  avatarWrap: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  avatarWrap: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.navy,
     alignItems: "center",
     justifyContent: "center",
   },
-  empty: { fontSize: 14, color: colors.muted, paddingVertical: spacing.lg },
-  count: { fontSize: 15, fontWeight: "700", color: colors.text },
+  avatarText: { fontSize: 12, fontWeight: "700", color: colors.white },
 });

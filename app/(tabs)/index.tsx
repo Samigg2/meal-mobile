@@ -1,14 +1,25 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { CircleCheck, CloudUpload, RefreshCw, UserPlus, ClipboardList, type LucideIcon } from "lucide-react-native";
-import { getDashboardStats, listParticipantsPage } from "@/lib/data";
+import {
+  CalendarCheck,
+  ChevronRight,
+  CircleCheck,
+  CloudUpload,
+  GraduationCap,
+  MessageSquareText,
+  ShieldAlert,
+  UserPlus,
+  ClipboardList,
+  type LucideIcon,
+} from "lucide-react-native";
+import { getDashboardStats, listRecentParticipants, type DashboardStats } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { useQueue } from "@/lib/net";
 import { displayName, greeting, initialsOf } from "@/lib/user";
-import { Card, EmptyState, IconBox, Skeleton, StatCard, Text } from "@/components/ui";
+import { Card, EmptyState, IconBox, Skeleton, Text } from "@/components/ui";
 import { roleLabel } from "@/lib/permissions";
-import { colors, radius, spacing, topics } from "@/theme";
+import { colors, radius, shadow, spacing, topics, type TopicName } from "@/theme";
 import { useSettings } from "@/lib/reference";
 
 const timeAgo = (ms: number) => {
@@ -21,57 +32,175 @@ const timeAgo = (ms: number) => {
 
 const shortDate = (iso?: string | null) =>
   iso
-    ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(iso).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
     : "—";
+
+const tone = (t: TopicName) => ({
+  color: topics[t].color,
+  tint: topics[t].tint,
+});
+
+function SectionTitle({ children }: { children: string }) {
+  return (
+    <View style={styles.sectionRow}>
+      <View style={styles.sectionBar} />
+      <Text style={styles.sectionTitle}>{children}</Text>
+    </View>
+  );
+}
 
 export default function Overview() {
   const settings = useSettings();
   const router = useRouter();
   const { profile, roles, user, can } = useAuth();
   const queued = useQueue();
-  const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: getDashboardStats });
+  const stats = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: getDashboardStats,
+  });
   // Only the five newest — the server lists newest first.
   const people = useQuery({
     queryKey: ["participants", "recent"],
-    queryFn: () => listParticipantsPage({ limit: 5 }),
+    queryFn: () => listRecentParticipants(5),
   });
 
   const { data, isLoading, isError, error, refetch, isRefetching, dataUpdatedAt } = stats;
   const name = displayName(profile, user?.email);
   const role = roles.length ? roles.map((r) => roleLabel(r)).join(", ") : "Awaiting role assignment";
-  const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const today = new Date().toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 
-  const recent = people.data?.rows ?? [];
+  const recent = people.data ?? [];
 
-  const actions: { label: string; icon: LucideIcon; color: string; tint: string; onPress: () => void }[] = [
+  // Field forms that work offline, each only for those who may fill it. Enterprise,
+  // loan and job are opened from the participant they are for.
+  const fieldWork: {
+    label: string;
+    icon: LucideIcon;
+    color: string;
+    tint: string;
+    go: () => void;
+  }[] = [
     ...(can("participants", "write")
       ? [
           {
-            label: "Register participant",
+            label: "Register",
             icon: UserPlus,
-            color: topics.participants.color,
-            tint: topics.participants.tint,
-            onPress: () => router.push("/participants/new"),
+            ...tone("participants"),
+            go: () => router.push("/participants/new"),
           },
         ]
       : []),
     ...(can("surveys")
       ? [
           {
-            label: "Start survey",
+            label: "Survey",
             icon: ClipboardList,
-            color: topics.surveys.color,
-            tint: topics.surveys.tint,
-            onPress: () => router.navigate("/(tabs)/surveys"),
+            ...tone("surveys"),
+            go: () => router.navigate("/(tabs)/surveys"),
           },
         ]
       : []),
+    ...(can("training", "write")
+      ? [
+          {
+            label: "Attendance",
+            icon: GraduationCap,
+            ...tone("trainings"),
+            go: () => router.push("/training"),
+          },
+        ]
+      : []),
+    ...(can("safeguarding", "write")
+      ? [
+          {
+            label: "Concern",
+            icon: ShieldAlert,
+            ...tone("safeguarding"),
+            go: () => router.push("/safeguarding/new"),
+          },
+        ]
+      : []),
+    ...(can("feedback", "write")
+      ? [
+          {
+            label: "Feedback",
+            icon: MessageSquareText,
+            ...tone("disability"),
+            go: () => router.push("/feedback/new"),
+          },
+        ]
+      : []),
+    ...(can("monitoring", "write")
+      ? [
+          {
+            label: "Work plan",
+            icon: CalendarCheck,
+            ...tone("indicators"),
+            go: () => router.push("/activities"),
+          },
+        ]
+      : []),
+  ];
+
+  // Small numbers; the registers among them open their list.
+  const numbers = (d: DashboardStats): { topic: TopicName; label: string; value: number; go?: () => void }[] => [
     {
-      label: "Sync now",
-      icon: RefreshCw,
-      color: topics.indicators.color,
-      tint: topics.indicators.tint,
-      onPress: () => router.push("/sync"),
+      topic: "participants",
+      label: "Participants",
+      value: d.participants,
+      go: () => router.navigate("/(tabs)/participants"),
+    },
+    { topic: "female", label: "Female", value: d.female },
+    {
+      topic: "youth",
+      label: `Youth ${settings.youth_min_age}–${settings.youth_max_age}`,
+      value: d.youth,
+    },
+    { topic: "disability", label: "Disability", value: d.disability },
+    ...(can("enterprises")
+      ? [
+          {
+            topic: "enterprises" as const,
+            label: "Enterprises",
+            value: d.enterprises,
+            go: () => router.push("/enterprises"),
+          },
+        ]
+      : []),
+    ...(can("employment")
+      ? [
+          {
+            topic: "jobs" as const,
+            label: "Jobs",
+            value: d.placements ?? 0,
+            go: () => router.push("/employment"),
+          },
+        ]
+      : []),
+    ...(can("finance")
+      ? [
+          {
+            topic: "loans" as const,
+            label: "Loans",
+            value: d.loans ?? 0,
+            go: () => router.push("/finance"),
+          },
+        ]
+      : []),
+    { topic: "trainings", label: "Trainings", value: d.trainingEvents },
+    { topic: "surveys", label: "Responses", value: d.surveyResponses },
+    {
+      topic: "indicators",
+      label: `On track of ${d.indicators}`,
+      value: d.onTrack,
     },
   ];
 
@@ -115,18 +244,46 @@ export default function Overview() {
             <>
               <CircleCheck size={14} color="#86EFAC" />
               <Text style={styles.syncText}>
-                All data synced{dataUpdatedAt ? ` · ${timeAgo(dataUpdatedAt)}` : ""}
+                {data?.savedAt
+                  ? `Offline · numbers saved ${timeAgo(new Date(data.savedAt).getTime())}`
+                  : `All data synced${dataUpdatedAt ? ` · ${timeAgo(dataUpdatedAt)}` : ""}`}
               </Text>
             </>
           )}
         </Pressable>
       </View>
 
-      {/* KPI grid */}
+      {/* Field work first: it is what the officer opened the app for */}
+      {fieldWork.length > 0 ? (
+        <>
+          <SectionTitle>Field work</SectionTitle>
+          <View style={styles.grid}>
+            {fieldWork.map((f) => (
+              <Pressable
+                key={f.label}
+                accessibilityRole="button"
+                onPress={f.go}
+                style={({ pressed }) => [styles.tile, { borderBottomColor: f.color }, pressed && styles.pressed]}
+              >
+                {/* Like the web dashboard cards: solid icon circle, coloured bottom line. */}
+                <IconBox icon={f.icon} color={f.color} size={38} solid />
+                <Text style={styles.tileLabel} numberOfLines={1}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {can("enterprises", "write") || can("finance", "write") || can("employment", "write") ? (
+            <Text style={styles.fieldHint}>Enterprise, loan and job: open the participant they are for.</Text>
+          ) : null}
+        </>
+      ) : null}
+
+      {/* Numbers */}
       {isLoading ? (
         <View style={styles.grid}>
-          {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} width="48%" height={112} borderRadius={radius.lg} />
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} width="31.5%" height={64} borderRadius={radius.md} />
           ))}
         </View>
       ) : isError ? (
@@ -136,42 +293,37 @@ export default function Overview() {
         />
       ) : data ? (
         <>
+          <SectionTitle>Programme</SectionTitle>
           <View style={styles.grid}>
-            <StatCard topic="participants" label="Participants" value={data.participants} sub={`${data.activeParticipants} active`} />
-            <StatCard topic="female" label="Female" value={data.female} />
-            <StatCard topic="youth" label={`Youth (${settings.youth_min_age}–${settings.youth_max_age})`} value={data.youth} />
-            <StatCard topic="disability" label="With disability" value={data.disability} />
-            <StatCard topic="enterprises" label="Enterprises" value={data.enterprises} />
-            <StatCard topic="trainings" label="Trainings" value={data.trainingEvents} />
-            <StatCard topic="surveys" label="Surveys" value={data.surveyResponses} sub="responses collected" />
-            <StatCard
-              topic="indicators"
-              label="Indicators on track"
-              value={data.onTrack}
-              sub={`of ${data.indicators} · ${data.atRisk} at risk`}
-            />
+            {numbers(data).map((n) => {
+              const t = topics[n.topic];
+              return (
+                <Pressable
+                  key={n.label}
+                  accessibilityRole={n.go ? "button" : undefined}
+                  disabled={!n.go}
+                  onPress={n.go}
+                  style={({ pressed }) => [styles.stat, { borderBottomColor: t.color }, pressed && styles.pressed]}
+                >
+                  <View style={styles.statTop}>
+                    <View style={styles.statFigure}>
+                      <IconBox icon={t.icon} color={t.color} size={24} solid />
+                      <Text style={[styles.statValue, { color: t.color }]}>{n.value.toLocaleString()}</Text>
+                    </View>
+                    {n.go ? <ChevronRight size={14} color={colors.faint} /> : null}
+                  </View>
+                  <Text style={styles.statLabel} numberOfLines={1}>
+                    {n.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-
-          {/* Quick actions */}
-          <Text style={styles.sectionTitle}>Quick actions</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {actions.map((a) => (
-              <Pressable
-                key={a.label}
-                accessibilityRole="button"
-                onPress={a.onPress}
-                style={({ pressed }) => [styles.chip, pressed && { opacity: 0.85 }]}
-              >
-                <IconBox icon={a.icon} color={a.color} tint={a.tint} size={32} round />
-                <Text style={styles.chipText}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
 
           {/* Recent activity */}
           {recent.length > 0 ? (
             <>
-              <Text style={styles.sectionTitle}>Recent activity</Text>
+              <SectionTitle>Recently registered</SectionTitle>
               <Card style={styles.listCard}>
                 {recent.map((p, i) => (
                   <Pressable
@@ -183,13 +335,17 @@ export default function Overview() {
                     <View
                       style={[
                         styles.avatar,
-                        { backgroundColor: p.sex === "female" ? topics.female.tint : topics.participants.tint },
+                        {
+                          backgroundColor: p.sex === "female" ? topics.female.tint : topics.participants.tint,
+                        },
                       ]}
                     >
                       <Text
                         style={[
                           styles.avatarText,
-                          { color: p.sex === "female" ? topics.female.color : topics.participants.color },
+                          {
+                            color: p.sex === "female" ? topics.female.color : topics.participants.color,
+                          },
                         ]}
                       >
                         {initialsOf(p.full_name)}
@@ -233,12 +389,27 @@ export default function Overview() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl * 2 },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl * 2,
+  },
   flex: { flex: 1 },
-  hero: { backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  hero: {
+    backgroundColor: colors.navy,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
   heroTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   greeting: { fontSize: 13, color: colors.onNavyMuted },
-  name: { fontSize: 20, fontWeight: "700", color: colors.white, letterSpacing: -0.3, marginTop: 2 },
+  name: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.white,
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
   date: { fontSize: 12, color: colors.onNavyMuted },
   rolePill: {
     alignSelf: "flex-start",
@@ -248,37 +419,107 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   roleText: { fontSize: 12, color: colors.white, fontWeight: "600" },
-  syncLine: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 28, marginTop: 2 },
-  syncText: { fontSize: 12, color: colors.onNavyMuted },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginTop: spacing.sm },
-  chips: { gap: spacing.sm, paddingRight: spacing.lg },
-  chip: {
+  syncLine: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingVertical: 6,
-    paddingLeft: 6,
-    paddingRight: spacing.lg,
-    minHeight: 44,
+    gap: 6,
+    minHeight: 28,
+    marginTop: 2,
   },
-  chipText: { fontSize: 13, fontWeight: "600", color: colors.text },
+  syncText: { fontSize: 12, color: colors.onNavyMuted },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  sectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  sectionBar: { width: 4, height: 14, borderRadius: 2, backgroundColor: colors.primary },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.secondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  fieldHint: { fontSize: 12, color: colors.muted },
+  pressed: { opacity: 0.85 },
+  tile: {
+    width: "31.5%",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderBottomWidth: 3,
+    ...shadow,
+  },
+  tileLabel: { fontSize: 12, fontWeight: "600", color: colors.text },
+  stat: {
+    width: "31.5%",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderBottomWidth: 3,
+    ...shadow,
+  },
+  statTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  statFigure: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statValue: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
+  statLabel: { fontSize: 11, fontWeight: "600", color: colors.secondary, marginTop: 4 },
   listCard: { padding: 0 },
-  activityRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, minHeight: 56 },
-  activityDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  activityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    minHeight: 56,
+  },
+  activityDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarText: { fontSize: 13, fontWeight: "700" },
   activityName: { fontSize: 14, fontWeight: "600", color: colors.text },
   activityMeta: { fontSize: 12, color: colors.muted },
   regions: { gap: spacing.md },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: colors.text, letterSpacing: -0.2 },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
   barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   barLabel: { width: 90, fontSize: 12, color: colors.secondary },
-  barTrack: { flex: 1, height: 8, backgroundColor: "#EEF2F7", borderRadius: radius.pill, overflow: "hidden" },
-  barFill: { height: 8, backgroundColor: colors.primary, borderRadius: radius.pill },
-  barValue: { width: 32, textAlign: "right", fontSize: 12, fontWeight: "700", color: colors.text },
+  barTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "#EEF2F7",
+    borderRadius: radius.pill,
+    overflow: "hidden",
+  },
+  barFill: {
+    height: 8,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+  },
+  barValue: {
+    width: 32,
+    textAlign: "right",
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.text,
+  },
 });

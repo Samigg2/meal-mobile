@@ -55,7 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles(data.roles);
       // Refresh the reference lists and survey forms kept for offline work, in
       // the background, whenever the officer is online and signed in.
-      void downloadForOffline().catch(() => undefined);
+      void downloadForOffline((module, action = "read") => hasPermission(data.roles, module, action)).catch(
+        () => undefined,
+      );
       try {
         const { overrides } = await api.get<{
           overrides: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[];

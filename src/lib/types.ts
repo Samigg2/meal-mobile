@@ -107,6 +107,7 @@ export interface AttachmentRow {
   description: string | null;
   created_at: string;
   updated_at: string;
+  document_type: string | null;
 }
 
 export interface AuditLogRow {
@@ -162,6 +163,7 @@ export interface EmploymentFollowUpRow {
   created_at: string;
   updated_at: string;
   job_ended_on: string | null;
+  client_ref: string | null;
 }
 
 export interface EmploymentPlacementRow {
@@ -190,6 +192,7 @@ export interface EmploymentPlacementRow {
   verified_by: string | null;
   exit_date: string | null;
   exit_reason: string | null;
+  client_ref: string | null;
 }
 
 export interface EmpowermentParticipantRow {
@@ -277,6 +280,7 @@ export interface EnterprisePerformanceRow {
   custom: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  client_ref: string | null;
 }
 
 export interface EnterpriseRow {
@@ -314,6 +318,7 @@ export interface EnterpriseRow {
   reviewed_at: string | null;
   review_note: string | null;
   submitted_by: string | null;
+  client_ref: string | null;
 }
 
 export interface EvaluationRow {
@@ -374,7 +379,8 @@ export interface FeedbackRow {
   zone: string | null;
   woreda: string | null;
   kebele: string | null;
-  referred: boolean;
+  client_ref: string | null;
+  referred: boolean | null;
 }
 
 export interface FinancialServiceProviderRow {
@@ -613,6 +619,7 @@ export interface LoanApplicationRow {
   decided_by: string | null;
   decision_note: string | null;
   service_fee: number | null;
+  client_ref: string | null;
 }
 
 export interface LoanDisbursementRow {
@@ -651,6 +658,7 @@ export interface LoanRepaymentRow {
   verified_by: string | null;
   verified_at: string | null;
   rejection_reason: string | null;
+  client_ref: string | null;
 }
 
 export interface LookupValueRow {
@@ -951,6 +959,7 @@ export interface SafeguardingCaseRow {
   updated_at: string;
   organization_id: string | null;
   custom: Record<string, unknown>;
+  client_ref: string | null;
 }
 
 export interface SbccActivityRow {
@@ -1235,6 +1244,11 @@ export interface WorkplanActivityRow {
   custom: Record<string, unknown>;
   responsible_id: string | null;
   woreda: string | null;
+  completion_review: string | null;
+  completion_submitted_by: string | null;
+  completion_reviewed_by: string | null;
+  completion_reviewed_at: string | null;
+  completion_review_note: string | null;
 }
 
 export interface YslaCycleRow {

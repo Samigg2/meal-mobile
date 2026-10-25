@@ -3,7 +3,9 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Vie
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { ChevronRight, CircleAlert, UserPlus, UsersRound, X } from "lucide-react-native";
-import { listParticipantsPage } from "@/lib/data";
+import { listParticipantsPage, participantsCopy } from "@/lib/data";
+import { ApiError } from "@/lib/api";
+import { updatedLabel, useListCopy } from "@/lib/offline-lists";
 import { useAuth } from "@/lib/auth";
 import { initialsOf } from "@/lib/user";
 import {
@@ -87,18 +89,40 @@ export default function Participants() {
       }),
     getNextPageParam: (last) => (last.hasMore ? last.offset + last.limit : undefined),
   });
-  const filtered = data?.pages.flatMap((p) => p.rows) ?? [];
-  const total = data?.pages[0]?.total ?? filtered.length;
+  // No connection: the saved copy of the whole register, searched and filtered here on the phone.
+  const offline = isError && error instanceof ApiError && error.isNetworkError;
+  const saved = useListCopy(participantsCopy, !!data && !isError);
+  const showSaved = offline && !!saved.rows;
+  const words = term.toLowerCase();
+  const yes = (flag: boolean | null | undefined, want?: string) => !want || (want === "yes") === !!flag;
+  const filtered = showSaved
+    ? (saved.rows ?? []).filter(
+        (r) =>
+          (!words || `${r.full_name} ${r.participant_id} ${r.phone ?? ""}`.toLowerCase().includes(words)) &&
+          (!filters.status || r.status === filters.status) &&
+          (!filters.sex || r.sex === filters.sex) &&
+          yes(r.is_youth, filters.youth) &&
+          yes(r.disability, filters.disability) &&
+          yes(r.consent_given, filters.consent),
+      )
+    : (data?.pages.flatMap((p) => p.rows) ?? []);
+  const total = showSaved ? filtered.length : (data?.pages[0]?.total ?? filtered.length);
 
   const activeFilters = (Object.keys(filters) as (keyof Filters)[]).filter((k) => filters[k]);
 
   const canRegister = can("participants", "write");
 
-  if (isError) {
+  if (isError && !showSaved) {
     return (
       <EmptyState
         title="Could not load participants"
-        message={error instanceof Error ? error.message : "Check your connection and try again."}
+        message={
+          offline
+            ? "No connection, and the participants are not saved on this phone yet. Connect once, or use Download for offline on the Sync screen."
+            : error instanceof Error
+              ? error.message
+              : "Check your connection and try again."
+        }
       />
     );
   }
@@ -131,7 +155,10 @@ export default function Participants() {
             ))}
           </View>
         ) : null}
-        {!isLoading ? (
+        {showSaved ? (
+          <Text style={styles.offline}>Offline — the participants saved on this phone, updated {updatedLabel(saved.savedAt)}.</Text>
+        ) : null}
+        {!isLoading || showSaved ? (
           <Text style={styles.count}>
             {total.toLocaleString()} participant{total === 1 ? "" : "s"}
             {term || activeFilters.length ? " found" : ""}
@@ -139,7 +166,7 @@ export default function Participants() {
         ) : null}
       </View>
 
-      {isLoading ? (
+      {isLoading && !showSaved ? (
         <ListSkeleton />
       ) : (
         <FlatList
@@ -318,6 +345,7 @@ const styles = StyleSheet.create({
   },
   activeChipText: { fontSize: 12, fontWeight: "600", color: colors.primary, textTransform: "capitalize" },
   count: { fontSize: 13, color: colors.muted },
+  offline: { fontSize: 12, fontWeight: "600", color: colors.warning },
   list: { paddingHorizontal: spacing.lg, paddingBottom: 96, flexGrow: 1 },
   separator: { height: spacing.md },
   footer: { paddingVertical: spacing.lg },

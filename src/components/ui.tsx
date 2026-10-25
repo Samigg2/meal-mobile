@@ -200,6 +200,53 @@ export function StickyFooter({ children }: { children: ReactNode }) {
   return <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>{children}</View>;
 }
 
+/**
+ * The step band of a longer form, as on the web: numbered circles on the navy
+ * band, the current one lit, finished ones ticked, the current step's name below.
+ * `onStep` lets a finished step be opened again.
+ */
+export function StepBar({
+  steps,
+  step,
+  onStep,
+}: {
+  steps: string[];
+  step: number;
+  onStep?: (index: number) => void;
+}) {
+  return (
+    <View style={styles.stepBar} accessibilityRole="progressbar" accessibilityLabel={`Step ${step + 1} of ${steps.length}: ${steps[step]}`}>
+      <View style={styles.stepRow}>
+        {steps.map((title, i) => {
+          const done = i < step;
+          const current = i === step;
+          return (
+            <View key={title} style={[styles.stepCell, i === 0 && styles.stepCellFirst]}>
+              {i > 0 ? <View style={[styles.stepLine, (done || current) && styles.stepLineOn]} /> : null}
+              <Pressable
+                disabled={!onStep || !done}
+                onPress={() => onStep?.(i)}
+                accessibilityRole="button"
+                accessibilityLabel={title}
+                style={[styles.stepDot, (done || current) && styles.stepDotOn, current && styles.stepDotCurrent]}
+              >
+                {done ? (
+                  <Check size={14} color={colors.white} strokeWidth={3} />
+                ) : (
+                  <Text style={[styles.stepNum, current && styles.stepNumOn]}>{i + 1}</Text>
+                )}
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.stepTitle}>
+        {steps[step]} <Text style={styles.stepOf}>· {step + 1} of {steps.length}</Text>
+      </Text>
+    </View>
+  );
+}
+
 /* --------------------------------- inputs -------------------------------- */
 
 export function Field({
@@ -799,6 +846,19 @@ const styles = StyleSheet.create({
   },
   fabExtended: { width: "auto", paddingHorizontal: spacing.lg + 4 },
   fabText: { color: colors.white, fontWeight: "700", fontSize: 15 },
+  stepBar: { backgroundColor: colors.navy, borderRadius: radius.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, gap: spacing.sm },
+  stepRow: { flexDirection: "row", alignItems: "center" },
+  stepCell: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
+  stepCellFirst: { flex: 0 },
+  stepLine: { flex: 1, height: 2, marginHorizontal: 4, backgroundColor: "rgba(255,255,255,0.25)" },
+  stepLineOn: { backgroundColor: colors.primary },
+  stepDot: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.white },
+  stepDotOn: { backgroundColor: colors.primary },
+  stepDotCurrent: { borderWidth: 3, borderColor: "rgba(59,130,246,0.35)" },
+  stepNum: { fontSize: 13, fontWeight: "700", color: colors.navy },
+  stepNumOn: { color: colors.white },
+  stepTitle: { fontSize: 14, fontWeight: "700", color: colors.white, textAlign: "center" },
+  stepOf: { fontSize: 12, fontWeight: "500", color: colors.onNavyMuted },
   footer: {
     backgroundColor: colors.white,
     borderTopWidth: 1,
@@ -816,7 +876,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     backgroundColor: colors.white,
@@ -919,7 +979,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
     borderRadius: 7,
     borderWidth: 1.5,
-    borderColor: "#CBD5E1",
+    borderColor: colors.inputBorder,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.white,
@@ -928,7 +988,7 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: 14, color: colors.text, flex: 1, lineHeight: 20 },
   segment: {
     flexDirection: "row",
-    backgroundColor: "#E9EEF6",
+    backgroundColor: colors.background,
     borderRadius: radius.md,
     padding: 3,
   },

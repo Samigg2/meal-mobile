@@ -8,16 +8,15 @@ import {
   getRegistrationOptions,
   savedRegistration,
   splitWoreda,
-  sendIdCode,
   sendPhoneCode,
   submitRegistration,
-  verifyIdCode,
   verifyPhoneCode,
   zonesOf,
   type RegistrationAnswers,
 } from "@/lib/public-registration";
 import { AnswerPickers, PlacePickers } from "@/components/registration-fields";
 import { ApiError } from "@/lib/api";
+import { checkWithFayida } from "@/lib/fayida";
 import { PHONE_RE, yearsAgo } from "@/lib/participant-form";
 import {
   Badge,
@@ -48,7 +47,13 @@ const CONSENT_TEXT =
   "I agree that RAYEE II may collect and store my personal information to run the programme. I understand that staff will review my registration, and that I can withdraw my consent at any time.";
 
 const message = (e: unknown) =>
-  e instanceof ApiError ? (e.isNetworkError ? "No connection. Registration needs internet." : e.message) : String(e);
+  e instanceof ApiError
+    ? e.isNetworkError
+      ? "No connection. Registration needs internet."
+      : e.message
+    : e instanceof Error
+      ? e.message
+      : String(e);
 
 export default function Register() {
   const router = useRouter();
@@ -60,7 +65,6 @@ export default function Register() {
 
   const [nationalId, setNationalId] = useState("");
   const [kebeleId, setKebeleId] = useState("");
-  const [idCode, setIdCode] = useState("");
   const [idToken, setIdToken] = useState("");
   const [idMock, setIdMock] = useState(false);
 
@@ -82,9 +86,14 @@ export default function Register() {
     mutationFn: () => verifyPhoneCode(phone.trim(), phoneCode),
     onSuccess: (r) => setPhoneToken(r.verification_token),
   });
-  const sendId = useMutation({ mutationFn: () => sendIdCode(nationalId.trim()) });
-  const verifyId = useMutation({
-    mutationFn: () => verifyIdCode(nationalId.trim(), idCode),
+  const checkId = useMutation({
+    mutationFn: async () => {
+      const r = await checkWithFayida("public", nationalId.trim() || undefined);
+      if (r.data.national_id && r.data.national_id !== nationalId.trim()) {
+        throw new Error(`Fayida checked a different National ID (${r.data.national_id}). Check the number and try again.`);
+      }
+      return r;
+    },
     onSuccess: (r) => {
       setIdToken(r.fayida_token);
       setIdMock(r.source === "mock");
@@ -247,41 +256,26 @@ export default function Register() {
             onChangeText={(v) => {
               setNationalId(v);
               setIdToken("");
-              setIdCode("");
-              sendId.reset();
-              verifyId.reset();
+              checkId.reset();
             }}
             keyboardType="number-pad"
-            editable={!idToken}
+            editable={!idToken && !checkId.isPending}
           />
-          {options.data?.verification.fayida && nationalId.trim() ? (
+          {options.data?.verification.fayida && nationalId.trim().length === 12 ? (
             idToken ? (
-              <Badge text={idMock ? "ID checked (test service)" : "ID confirmed"} tone="success" />
-            ) : sendId.isSuccess ? (
-              <>
-                {sendId.data?.message ? <Text style={styles.note}>{sendId.data.message}</Text> : null}
-                <Field
-                  label="ID service code"
-                  value={idCode}
-                  onChangeText={(v) => setIdCode(v.replace(/\D/g, "").slice(0, 6))}
-                  keyboardType="number-pad"
-                />
-                <ErrorText>{verifyId.error ? message(verifyId.error) : null}</ErrorText>
-                <Button
-                  title="Check my ID"
-                  onPress={() => verifyId.mutate()}
-                  loading={verifyId.isPending}
-                  disabled={idCode.length < 4}
-                />
-              </>
+              <Badge text={idMock ? "ID checked (Fayida test page)" : "ID confirmed by Fayida"} tone="success" />
             ) : (
               <>
-                <ErrorText>{sendId.error ? message(sendId.error) : null}</ErrorText>
+                <Text style={styles.note}>
+                  Optional: check your ID on Fayida&apos;s page. Fayida sends a code to the phone linked to your ID,
+                  then you come back here.
+                </Text>
+                <ErrorText>{checkId.error ? message(checkId.error) : null}</ErrorText>
                 <Button
-                  title="Check my ID (optional)"
+                  title="Check my ID with Fayida"
                   variant="outline"
-                  onPress={() => sendId.mutate()}
-                  loading={sendId.isPending}
+                  onPress={() => checkId.mutate()}
+                  loading={checkId.isPending}
                 />
               </>
             )

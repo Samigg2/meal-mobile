@@ -105,6 +105,11 @@ export default function Surveys() {
             <IconBox icon={ClipboardList} color={t.color} tint={t.tint} size={44} />
             <View style={styles.flex}>
               <Text style={styles.title}>{item.title}</Text>
+              {item.evaluation_title ? (
+                <Text style={styles.evaluation} numberOfLines={1}>
+                  Evaluation: {item.evaluation_title}
+                </Text>
+              ) : null}
               <Text style={styles.meta}>
                 {item.question_count} question{item.question_count === 1 ? "" : "s"} · {item.response_count}
                 {item.target_sample ? ` of ${item.target_sample}` : ""} response
@@ -171,6 +176,7 @@ const styles = StyleSheet.create({
   separator: { height: spacing.md },
   title: { fontSize: 16, fontWeight: "600", color: colors.text },
   meta: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  evaluation: { fontSize: 12, color: colors.primary, fontWeight: "600", marginTop: 2 },
   progress: { marginTop: spacing.sm },
   pills: { flexDirection: "row", gap: spacing.xs, marginTop: spacing.sm },
 });

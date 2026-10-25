@@ -3,10 +3,12 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "re
 import { Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getParticipantDetail, updateParticipant } from "@/lib/data";
+import { getParticipantDetail, type ParticipantInput } from "@/lib/data";
 import type { ParticipantRow } from "@/lib/types";
 import { ApiError } from "@/lib/api";
-import { shouldQueue } from "@/lib/queue";
+import { type Targeted } from "@/lib/queue";
+import { saveOrQueue, useQueuedPayload } from "@/lib/field-form";
+import { SavedNotice } from "@/components/field-form";
 import {
   EMPTY,
   OTHER,
@@ -72,15 +74,39 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
   };
 }
 
+/**
+ * A change made with no connection waits on the phone as only the fields that
+ * changed, so it does not undo what the office changed meanwhile in the
+ * others. It keeps the record as it was (`_before`, never sent) so it can be
+ * opened again from Sync without a connection.
+ */
+type QueuedEdit = Targeted<{ participant: Partial<ParticipantInput>; _before: ParticipantRow }>;
+
+/** The fields that differ; a cleared one is sent empty so the server clears it too. */
+function changedFields(before: Partial<ParticipantInput>, after: Partial<ParticipantInput>): Partial<ParticipantInput> {
+  const changed: Record<string, unknown> = {};
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof ParticipantInput>) {
+    if (key === "client_ref") continue;
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changed[key] = after[key] ?? "";
+  }
+  return changed as Partial<ParticipantInput>;
+}
+
 export default function EditParticipant() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const queued = useQueuedPayload<QueuedEdit>();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["participant-detail", id],
     queryFn: () => getParticipantDetail(id),
-    enabled: !!id,
+    enabled: !!id && queued.ready && !queued.payload,
   });
 
-  if (isLoading) return <ListSkeleton rows={3} />;
+  if (!queued.ready || isLoading) return <ListSkeleton rows={3} />;
+  // A waiting change opened from Sync: the record as it was, with the change on top.
+  if (queued.payload) {
+    const { _before, participant } = queued.payload;
+    return <EditForm id={id} participant={_before} pending={participant} queuedId={queued.queuedId} />;
+  }
   if (isError || !data) {
     return (
       <EmptyState
@@ -97,14 +123,28 @@ export default function EditParticipant() {
  * Mounted only once the record has loaded, so its form state initializes from
  * the real data in one pass — no effect needed to fill it in after the fact.
  */
-function EditForm({ id, participant }: { id: string; participant: ParticipantRow }) {
+function EditForm({
+  id,
+  participant,
+  pending,
+  queuedId,
+}: {
+  id: string;
+  participant: ParticipantRow;
+  /** The waiting change, when opened from Sync. */
+  pending?: Partial<ParticipantInput>;
+  queuedId?: string;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scroll = useRef<ScrollView>(null);
   const locations = useLocations();
-  const [form, setForm] = useState<FormState>(() => toForm(participant, locations.woredasOf));
+  const [form, setForm] = useState<FormState>(() =>
+    toForm({ ...participant, ...(pending as Partial<ParticipantRow>) }, locations.woredasOf),
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const [queuedNotice, setQueuedNotice] = useState(false);
 
   const education = useLookupOptions("participants.education_level");
   const marital = useLookupOptions("participants.marital_status");
@@ -121,8 +161,23 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
   const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
   const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
 
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+  /** The web's rules for one field, shown when it is left or picked (not only on Save). */
+  function checkField(key: keyof FormState, next: FormState = form) {
+    const found = validate(next, woredas.length > 0, settings);
+    const keys: (keyof FormState)[] = key === "national_id" || key === "kebele_id" ? ["national_id", "kebele_id"] : [key];
+    setErrors((prev) => {
+      const out = { ...prev, form: undefined };
+      for (const k of keys) out[k] = found[k];
+      return out;
+    });
+  }
+
+  function update<K extends keyof FormState>(key: K, value: FormState[K], check = false) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (check) {
+      checkField(key, { ...form, [key]: value });
+      return;
+    }
     setErrors((prev) => (prev[key] || prev.form ? { ...prev, [key]: undefined, form: undefined } : prev));
   }
 
@@ -145,14 +200,27 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
     setSaving(true);
     setErrors({});
     try {
-      await updateParticipant(id, toInput(form));
+      const changes = changedFields(toInput(toForm(participant, locations.woredasOf)), toInput(form));
+      if (Object.keys(changes).length === 0) {
+        router.back();
+        return;
+      }
+      const payload: QueuedEdit = { participant: changes, _target: id, _before: participant };
+      const result = await saveOrQueue({
+        kind: "participant_edit",
+        label: `Change to ${participant.full_name}`,
+        payload,
+        queuedId,
+      });
+      if (result === "queued") {
+        setQueuedNotice(true);
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["participant-detail", id] });
       await queryClient.invalidateQueries({ queryKey: ["participants"] });
       router.back();
     } catch (err) {
-      if (shouldQueue(err)) {
-        showErrors({ form: "No connection. Editing needs internet — try again once you are back online." });
-      } else if (err instanceof ApiError) {
+      if (err instanceof ApiError) {
         showErrors({ form: err.status === 409 ? err.message : err.problems.join("\n") });
       } else {
         showErrors({ form: "Could not save the changes." });
@@ -161,6 +229,8 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
       setSaving(false);
     }
   }
+
+  if (queuedNotice) return <SavedNotice queued what="change" another={false} />;
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -180,6 +250,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             value={form.full_name}
             onChangeText={(v) => update("full_name", v)}
             autoCapitalize="words"
+            onBlur={() => checkField("full_name")}
             error={errors.full_name}
           />
           <Field
@@ -190,6 +261,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             maxLength={12}
             autoCapitalize="characters"
             hint="Changing this is checked again for duplicates, the same as registration."
+            onBlur={() => checkField("national_id")}
             error={errors.national_id}
           />
           <Field
@@ -198,6 +270,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             onChangeText={(v) => update("kebele_id", v)}
             placeholder="e.g. KB-2023-445"
             autoCapitalize="characters"
+            onBlur={() => checkField("kebele_id")}
             error={errors.kebele_id}
           />
         </Section>
@@ -207,7 +280,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             label="Date of birth"
             required
             value={form.date_of_birth}
-            onChange={(v) => update("date_of_birth", v)}
+            onChange={(v) => update("date_of_birth", v, true)}
             min={yearsAgo(settings.participant_max_age)}
             max={yearsAgo(settings.participant_min_age)}
             initialYear={new Date().getFullYear() - 22}
@@ -230,7 +303,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
               { label: "Female", value: "female" },
               { label: "Male", value: "male" },
             ]}
-            onChange={(v) => update("sex", v)}
+            onChange={(v) => update("sex", v, true)}
             error={errors.sex}
           />
           <Field
@@ -239,6 +312,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             value={form.phone}
             onChangeText={(v) => update("phone", v)}
             keyboardType="phone-pad"
+            onBlur={() => checkField("phone")}
             error={errors.phone}
           />
           <Field
@@ -247,6 +321,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             onChangeText={(v) => update("email", v)}
             keyboardType="email-address"
             autoCapitalize="none"
+            onBlur={() => checkField("email")}
             error={errors.email}
           />
           <Select
@@ -264,22 +339,26 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             placeholder="Select marital status"
           />
           <Field
-            label="Household size"
+            label="Family size"
             value={form.family_size}
             onChangeText={(v) => update("family_size", v.replace(/\D/g, ""))}
             keyboardType="number-pad"
             maxLength={2}
+            onBlur={() => checkField("family_size")}
             error={errors.family_size}
           />
         </Section>
 
-        <Section title="Location" icon={MapPin} description="Where the participant lives.">
+        <Section title="Location" icon={MapPin}>
           <Select
             label="Region"
             required
             value={form.region}
             options={locations.regions}
-            onChange={(v) => setForm((p) => ({ ...p, region: v, zone: "", woreda: "", woreda_other: "" }))}
+            onChange={(v) => {
+              setForm((p) => ({ ...p, region: v, zone: "", woreda: "", woreda_other: "" }));
+              checkField("region", { ...form, region: v, zone: "", woreda: "", woreda_other: "" });
+            }}
             placeholder="Select region"
             error={errors.region}
           />
@@ -289,7 +368,10 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
               required
               value={form.zone}
               options={zones}
-              onChange={(v) => setForm((p) => ({ ...p, zone: v, woreda: "", woreda_other: "" }))}
+              onChange={(v) => {
+                setForm((p) => ({ ...p, zone: v, woreda: "", woreda_other: "" }));
+                checkField("zone", { ...form, zone: v, woreda: "", woreda_other: "" });
+              }}
               placeholder={form.region ? "Select zone" : "Select the region first"}
               disabled={!form.region}
               error={errors.zone}
@@ -309,7 +391,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
             required
             value={form.woreda}
             options={woredaOptions}
-            onChange={(v) => update("woreda", v)}
+            onChange={(v) => update("woreda", v, true)}
             placeholder={form.zone ? "Select woreda" : "Select the zone first"}
             disabled={!form.zone}
             error={form.woreda === OTHER ? undefined : errors.woreda}
@@ -320,6 +402,7 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
               required
               value={form.woreda_other}
               onChangeText={(v) => update("woreda_other", v)}
+              onBlur={() => checkField("woreda")}
               autoCapitalize="words"
               error={errors.woreda}
             />
@@ -337,15 +420,16 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
           />
           {form.vulnerability_category === OTHER ? (
             <Field
-              label="Please specify"
+              label="Other vulnerability category"
               required
               value={form.vulnerability_other}
               onChangeText={(v) => update("vulnerability_other", v)}
+              onBlur={() => checkField("vulnerability_other")}
               error={errors.vulnerability_other}
             />
           ) : null}
           <Toggle
-            label="Participant lives with a disability"
+            label="Disability"
             value={form.disability}
             onChange={(v) => update("disability", v)}
           />
@@ -356,16 +440,17 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
                 required
                 value={form.disability_type}
                 options={disability}
-                onChange={(v) => update("disability_type", v)}
+                onChange={(v) => update("disability_type", v, true)}
                 placeholder="Select type"
                 error={errors.disability_type}
               />
               {form.disability_type === OTHER ? (
                 <Field
-                  label="Please specify"
+                  label="Other disability"
                   required
                   value={form.disability_other}
                   onChangeText={(v) => update("disability_other", v)}
+                  onBlur={() => checkField("disability_other")}
                   error={errors.disability_other}
                 />
               ) : null}
@@ -375,9 +460,9 @@ function EditForm({ id, participant }: { id: string; participant: ParticipantRow
 
         <Section title="Consent and notes" icon={ShieldCheck}>
           <Toggle
-            label="Informed consent obtained *"
+            label="Consent given *"
             value={form.consent_given}
-            onChange={(v) => update("consent_given", v)}
+            onChange={(v) => update("consent_given", v, true)}
           />
           {errors.consent_given ? <Text style={styles.fieldError}>{errors.consent_given}</Text> : null}
           <Field

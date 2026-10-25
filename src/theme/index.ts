@@ -1,5 +1,6 @@
 import {
   Accessibility,
+  BriefcaseBusiness,
   ClipboardList,
   GraduationCap,
   HandCoins,
@@ -18,18 +19,21 @@ import {
  * same topic colour + icon pairs, same status pill colours.
  */
 export const colors = {
-  navy: "#16213A",
-  primary: "#1D63D8",
-  primaryDark: "#1E3A8A",
-  primarySoft: "#EAF1FE",
+  /** The web sidebar's soft navy. */
+  navy: "#1E3A5F",
+  /** blue-500, the web's buttons and selected items. */
+  primary: "#3B82F6",
+  primaryDark: "#2563EB",
+  primarySoft: "#EFF6FF",
   accent: "#3B82F6",
   /** Kept for older call sites: the dark brand surface. */
-  ink: "#16213A",
-  background: "#F5F7FB",
+  ink: "#1E3A5F",
+  background: "#F3F4F6",
   card: "#FFFFFF",
-  border: "#E3E8F0",
-  text: "#0F172A",
-  secondary: "#475569",
+  border: "#E5E7EB",
+  /** Slate text, as on the web. */
+  text: "#475569",
+  secondary: "#64748B",
   muted: "#64748B",
   faint: "#94A3B8",
   danger: "#DC2626",
@@ -41,6 +45,8 @@ export const colors = {
   white: "#FFFFFF",
   /** Muted text on the navy surfaces. */
   onNavyMuted: "#9FB0CC",
+  /** The input border of the web forms. */
+  inputBorder: "#D0D5DD",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
@@ -73,7 +79,7 @@ export interface TopicStyle {
 
 /** Same topic colours and icons as the web dashboard. */
 export const topics = {
-  participants: { color: "#2563EB", tint: "#DBEAFE", icon: UsersRound },
+  participants: { color: "#3B82F6", tint: "#DBEAFE", icon: UsersRound },
   female: { color: "#DB2777", tint: "#FCE7F3", icon: Venus },
   youth: { color: "#0891B2", tint: "#CFFAFE", icon: Sparkles },
   disability: { color: "#7C3AED", tint: "#EDE9FE", icon: Accessibility },
@@ -82,6 +88,7 @@ export const topics = {
   surveys: { color: "#CA8A04", tint: "#FEF9C3", icon: ClipboardList },
   indicators: { color: "#C026D3", tint: "#FAE8FF", icon: TrendingUp },
   loans: { color: "#CA8A04", tint: "#FEF9C3", icon: HandCoins },
+  jobs: { color: "#0D9488", tint: "#CCFBF1", icon: BriefcaseBusiness },
   safeguarding: { color: "#DC2626", tint: "#FEE2E2", icon: ShieldCheck },
   ysla: { color: "#EA580C", tint: "#FFEDD5", icon: Landmark },
 } as const satisfies Record<string, TopicStyle>;

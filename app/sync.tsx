@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { CloudCheck, CloudDownload, CloudUpload, Trash2 } from "lucide-react-native";
-import { clearQueue, needsAttention, removeFromQueue, syncQueue, type QueuedItem } from "@/lib/queue";
+import { useRouter, type Href } from "expo-router";
+import { CloudCheck, CloudDownload, CloudUpload, Pencil, Trash2 } from "lucide-react-native";
+import { clearQueue, formFor, kindLabel, needsAttention, removeFromQueue, syncQueue, type QueuedItem } from "@/lib/queue";
+import { useAuth } from "@/lib/auth";
 import { downloadForOffline } from "@/lib/data";
 import { cachedAt } from "@/lib/offline-cache";
 import { LOOKUPS_CACHE_KEY } from "@/lib/reference";
@@ -13,6 +15,8 @@ import { colors, spacing } from "@/theme";
 export default function Sync() {
   const items = useQueue();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { can } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -27,8 +31,10 @@ export default function Sync() {
     setDownloading(true);
     setOfflineStatus(null);
     try {
-      const { surveys } = await downloadForOffline();
-      setOfflineStatus(`Reference lists and ${surveys} active survey form${surveys === 1 ? "" : "s"} are on this device.`);
+      const { surveys, trainings } = await downloadForOffline(can);
+      setOfflineStatus(
+        `Reference lists, ${surveys} active survey form${surveys === 1 ? "" : "s"} and ${trainings} training${trainings === 1 ? "" : "s"} near today are on this device.`,
+      );
       setLastDownload(await cachedAt(LOOKUPS_CACHE_KEY));
     } catch (err) {
       setOfflineStatus(err instanceof Error ? err.message : "Could not download.");
@@ -84,7 +90,7 @@ export default function Sync() {
             <Text style={styles.title}>Offline data</Text>
             <Text style={styles.meta}>
               {lastDownload
-                ? `Lists and survey forms last updated ${new Date(lastDownload).toLocaleString()}.`
+                ? `Lists and forms last updated ${new Date(lastDownload).toLocaleString()}.`
                 : "Not downloaded yet. Do this before going to the field."}
             </Text>
           </View>
@@ -114,14 +120,14 @@ export default function Sync() {
           color={colors.success}
           tint={colors.successSoft}
           title="Nothing queued"
-          message="Registrations and survey responses captured without a connection appear here."
+          message="Anything filled in without a connection appears here until it is sent. Tap one to correct it."
         />
       ) : (
         items.map((item) => (
           <Card key={item.id} style={[styles.card, needsAttention(item) && styles.attention]}>
             <Text style={styles.itemLabel}>{item.label}</Text>
             <Text style={styles.meta}>
-              {item.kind === "participant" ? "Participant registration" : "Survey response"} ·{" "}
+              {kindLabel(item.kind)} ·{" "}
               {new Date(item.createdAt).toLocaleString()}
             </Text>
             <View style={styles.badgeRow}>
@@ -131,7 +137,14 @@ export default function Sync() {
             {item.lastError ? (
               <Text style={needsAttention(item) ? styles.errorText : styles.meta}>{item.lastError}</Text>
             ) : null}
-            <Button title="Discard" variant="outline" onPress={() => confirmDiscard(item)} />
+            <View style={styles.actions}>
+              <View style={styles.flex}>
+                <Button title="Open and fix" icon={Pencil} onPress={() => router.push(formFor(item) as Href)} />
+              </View>
+              <View style={styles.flex}>
+                <Button title="Discard" variant="outline" onPress={() => confirmDiscard(item)} />
+              </View>
+            </View>
           </Card>
         ))
       )}
@@ -147,6 +160,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: "700", color: colors.text },
   meta: { fontSize: 12, color: colors.muted },
   itemLabel: { fontSize: 14, fontWeight: "600", color: colors.text },
+  actions: { flexDirection: "row", gap: spacing.sm },
   badgeRow: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap" },
   result: { fontSize: 13, color: colors.success, fontWeight: "500" },
   attention: { borderColor: colors.danger, borderWidth: 1 },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import Constants from "expo-constants";
@@ -7,6 +7,7 @@ import { ArrowRight, Lock, Mail, ShieldCheck, UserPlus } from "lucide-react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { Button, ErrorText, Field, Text, Toggle } from "@/components/ui";
+import { LogoMark } from "@/components/brand-splash";
 import { apiBaseUrl } from "@/lib/api";
 import { savedRegistration } from "@/lib/public-registration";
 import { colors, radius, spacing } from "@/theme";
@@ -49,19 +50,10 @@ export default function SignIn() {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" bounces={false}>
-        {/* Brand header: navy with soft decorative rings */}
-        <View style={[styles.brand, { paddingTop: insets.top + 48 }]}>
-          <View pointerEvents="none" style={[styles.ring, styles.ringLarge]} />
-          <View pointerEvents="none" style={[styles.ring, styles.ringSmall]} />
-          <View pointerEvents="none" style={styles.glow} />
-
-          <View style={styles.logoOuter}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>R</Text>
-              <View style={styles.logoBadge}>
-                <Text style={styles.logoBadgeText}>II</Text>
-              </View>
-            </View>
+        {/* Brand header: plain dark navy */}
+        <View style={[styles.brand, { paddingTop: insets.top + 32 }]}>
+          <View style={styles.logo}>
+            <LogoMark />
           </View>
           <Text style={styles.title}>RAYEE II</Text>
           <Text style={styles.subtitle}>Monitoring, Evaluation, Accountability & Learning</Text>
@@ -118,12 +110,7 @@ export default function SignIn() {
               <Text
                 accessibilityRole="link"
                 style={styles.forgot}
-                onPress={() =>
-                  Alert.alert(
-                    "Forgot password?",
-                    "Ask your administrator to reset it, or use “Forgot password?” on the web sign-in page.",
-                  )
-                }
+                onPress={() => router.push("/forgot-password")}
               >
                 Forgot password?
               </Text>
@@ -137,26 +124,6 @@ export default function SignIn() {
               loading={loading}
               disabled={!email || !password}
             />
-          </View>
-
-          {/* Young people register themselves here; staff review every registration. */}
-          <View style={styles.selfRegister}>
-            <Text style={styles.selfRegisterText}>New to RAYEE II and not staff?</Text>
-            <Button
-              title="Register yourself"
-              variant="outline"
-              icon={UserPlus}
-              onPress={() => router.push("/register")}
-            />
-            {hasRegistration ? (
-              <Text
-                accessibilityRole="link"
-                style={styles.forgot}
-                onPress={() => router.push("/registration-status")}
-              >
-                Check my registration
-              </Text>
-            ) : null}
           </View>
 
           <View style={styles.partnersBlock}>
@@ -181,6 +148,22 @@ export default function SignIn() {
             </View>
           </View>
 
+          {/* Young people register themselves here; staff review every registration. */}
+          <View style={styles.selfRegister}>
+            <Text style={styles.selfRegisterText}>New to RAYEE II and not staff?</Text>
+            <Button
+              title="Register yourself"
+              variant="outline"
+              icon={UserPlus}
+              onPress={() => router.push("/register")}
+            />
+            {hasRegistration ? (
+              <Text accessibilityRole="link" style={styles.forgot} onPress={() => router.push("/registration-status")}>
+                Check my registration
+              </Text>
+            ) : null}
+          </View>
+
           <View style={styles.footer}>
             <ShieldCheck size={13} color={colors.faint} />
             <Text style={styles.footerText}>Secure sign-in · Version {version}</Text>
@@ -194,66 +177,24 @@ export default function SignIn() {
   );
 }
 
-const BRAND_BLUE = "#2F7CF6";
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.navy },
   flex: { flex: 1 },
   container: { flexGrow: 1, backgroundColor: colors.navy },
 
-  brand: { alignItems: "center", paddingBottom: 64, paddingHorizontal: spacing.xl, overflow: "hidden" },
-  ring: { position: "absolute", borderRadius: 999, borderWidth: 1, borderColor: "rgba(255,255,255,0.07)" },
-  ringLarge: { width: 420, height: 420, top: -210, right: -160 },
-  ringSmall: { width: 240, height: 240, bottom: -120, left: -110, borderColor: "rgba(255,255,255,0.06)" },
-  glow: {
-    position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    top: 10,
-    backgroundColor: BRAND_BLUE,
-    opacity: 0.12,
-  },
-
-  logoOuter: {
-    padding: 6,
-    borderRadius: 26,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    marginBottom: spacing.lg,
-  },
-  logo: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: BRAND_BLUE,
+  brand: {
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: BRAND_BLUE,
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+    paddingBottom: 52,
+    paddingHorizontal: spacing.xl,
   },
-  logoText: { fontSize: 34, fontWeight: "800", color: colors.white, marginTop: -2 },
-  logoBadge: {
-    position: "absolute",
-    right: -6,
-    bottom: -6,
-    minWidth: 26,
-    height: 22,
-    paddingHorizontal: 5,
-    borderRadius: 11,
-    backgroundColor: "#F59E0B",
-    borderWidth: 2,
-    borderColor: colors.navy,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoBadgeText: { fontSize: 11, fontWeight: "800", color: colors.navy },
+  logo: { marginBottom: spacing.md },
 
-  title: { fontSize: 28, fontWeight: "800", color: colors.white, letterSpacing: 1 },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.white,
+    letterSpacing: 1,
+  },
   subtitle: {
     marginTop: 4,
     fontSize: 13,
@@ -279,27 +220,57 @@ const styles = StyleSheet.create({
   sheet: {
     flexGrow: 1,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    marginTop: -32,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl + 4,
     gap: spacing.xl,
   },
   welcomeBlock: { gap: 4 },
-  welcome: { fontSize: 24, fontWeight: "800", color: colors.text, letterSpacing: -0.4 },
+  welcome: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: -0.4,
+  },
   welcomeHint: { fontSize: 14, color: colors.muted },
   form: { gap: spacing.lg },
-  optionsRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: -spacing.xs },
-  forgot: { fontSize: 13, fontWeight: "600", color: colors.primary, paddingVertical: 10 },
-  selfRegister: { gap: spacing.sm, alignItems: "stretch" },
+  optionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: -spacing.xs,
+  },
+  forgot: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.primary,
+    paddingVertical: 10,
+  },
+  // Spare height on tall phones goes above Register, so the logos stay up by the form.
+  selfRegister: { gap: spacing.sm, alignItems: "stretch", marginTop: "auto" },
   selfRegisterText: { fontSize: 13, color: colors.muted, textAlign: "center" },
 
-  partnersBlock: { gap: spacing.md, marginTop: "auto" },
-  partnersLabelRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  partnersBlock: { gap: spacing.md },
+  partnersLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   rule: { flex: 1, height: 1, backgroundColor: colors.border },
-  partnersLabel: { fontSize: 10, fontWeight: "700", color: colors.faint, letterSpacing: 1.2 },
-  partners: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.lg },
+  partnersLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.faint,
+    letterSpacing: 1.2,
+  },
+  partners: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.lg,
+  },
   partner: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   mcCircles: { flexDirection: "row" },
   mcCircle: { width: 22, height: 22, borderRadius: 11 },
@@ -309,7 +280,18 @@ const styles = StyleSheet.create({
   divider: { width: 1, height: 28, backgroundColor: colors.border },
   snv: { width: 64, height: 36, borderRadius: radius.sm },
 
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: -spacing.sm },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    marginTop: -spacing.sm,
+  },
   footerText: { fontSize: 11, color: colors.faint },
-  server: { fontSize: 11, color: colors.faint, textAlign: "center", marginTop: -spacing.md },
+  server: {
+    fontSize: 11,
+    color: colors.faint,
+    textAlign: "center",
+    marginTop: -spacing.md,
+  },
 });

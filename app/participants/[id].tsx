@@ -1,8 +1,8 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { CircleAlert, Pencil, ShieldCheck } from "lucide-react-native";
-import { getParticipantDetail } from "@/lib/data";
+import { BriefcaseBusiness, CircleAlert, HandCoins, Pencil, Plus, ShieldCheck, Store } from "lucide-react-native";
+import { getParticipantDetail, REPAYABLE } from "@/lib/data";
 import { initialsOf } from "@/lib/user";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
@@ -30,12 +30,18 @@ export default function ParticipantDetail() {
     );
   }
 
-  const { participant, enterprise, trainings } = data;
+  const { participant, enterprise, trainings, employment = [], loans = [] } = data;
+  const who = { participant: participant.id, participantName: participant.full_name };
   const female = participant.sex === "female";
   const t = female ? topics.female : topics.participants;
   const location = [participant.kebele, participant.woreda, participant.zone, participant.region]
     .filter(Boolean)
     .join(", ");
+  // Same rule and words as the web: a registration nobody has approved yet gets no enterprise, job or loan.
+  const pending =
+    participant.review_status && participant.review_status !== "approved"
+      ? `${participant.full_name} is still ${participant.review_status === "rejected" ? "rejected" : "pending approval"}: approve the registration first`
+      : null;
 
   return (
     <ScrollView
@@ -74,6 +80,20 @@ export default function ParticipantDetail() {
         ) : null}
       </Card>
 
+      {pending ? (
+        <Card style={styles.card}>
+          <Text style={styles.value}>Not approved yet</Text>
+          <Text style={styles.meta}>{pending}. An enterprise, job or loan can be added once someone else approves.</Text>
+        </Card>
+      ) : null}
+      {data.fromCopy ? (
+        <Card style={styles.card}>
+          <Text style={styles.meta}>
+            Offline: this is from the lists saved on this phone. Training history shows when you open this person online.
+          </Text>
+        </Card>
+      ) : null}
+
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
         <Row label="Sex" value={capital(participant.sex)} />
@@ -98,7 +118,115 @@ export default function ParticipantDetail() {
         ) : (
           <Text style={styles.meta}>Not linked to an enterprise.</Text>
         )}
+        {can("enterprises", "write") ? (
+          <View style={styles.actions}>
+            {enterprise ? (
+              <Button
+                title="Record a visit"
+                icon={Store}
+                variant="outline"
+                onPress={() =>
+                  router.push({
+                    pathname: "/enterprises/performance",
+                    params: { id: enterprise.id, name: enterprise.enterprise_name },
+                  })
+                }
+              />
+            ) : null}
+            {pending ? null : (
+              <Button
+                title="Add an enterprise"
+                icon={Plus}
+                variant="outline"
+                onPress={() =>
+                  router.push({ pathname: "/enterprises/new", params: { owner: participant.id, ownerName: participant.full_name } })
+                }
+              />
+            )}
+          </View>
+        ) : null}
       </Card>
+
+      {can("employment") ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Jobs</Text>
+          {employment.length === 0 ? <Text style={styles.meta}>No job recorded.</Text> : null}
+          {employment.map((job, i) => {
+            const title = [job.job_title, job.employer_name].filter(Boolean).join(" at ") || "Job";
+            return (
+              <View key={job.id} style={[styles.itemRow, i > 0 && styles.divider]}>
+                <Text style={styles.value}>{title}</Text>
+                <Text style={styles.meta}>
+                  {[capital(job.placement_type), job.start_date ? `from ${job.start_date.slice(0, 10)}` : null, capital(job.status)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  {job.verified_on ? "" : " · not verified yet"}
+                </Text>
+                {can("employment", "write") && job.verified_on && job.status !== "exited" ? (
+                  <Button
+                    title="Follow-up"
+                    variant="outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/employment/follow-up",
+                        params: { id: job.id, job: `${participant.full_name}: ${title}` },
+                      })
+                    }
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+          {can("employment", "write") && !pending ? (
+            <Button
+              title="Add a job"
+              icon={BriefcaseBusiness}
+              variant="outline"
+              onPress={() => router.push({ pathname: "/employment/new", params: who })}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+
+      {can("finance") ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Loans</Text>
+          {loans.length === 0 ? <Text style={styles.meta}>No loan recorded.</Text> : null}
+          {loans.map((loan, i) => {
+            const label = `${capital(loan.product_type)} · ${Number(loan.amount_requested).toLocaleString("en")} ${loan.currency}`;
+            return (
+              <View key={loan.id} style={[styles.itemRow, i > 0 && styles.divider]}>
+                <Text style={styles.value}>{label}</Text>
+                <Text style={styles.meta}>
+                  {[loan.financial_service_providers?.name, capital(loan.status), loan.application_date?.slice(0, 10)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+                {can("finance", "write") && REPAYABLE.has(loan.status) ? (
+                  <Button
+                    title="Record a repayment"
+                    variant="outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/finance/repayment",
+                        params: { loan: loan.id, loanLabel: `${participant.full_name}: ${label}` },
+                      })
+                    }
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+          {can("finance", "write") && !pending ? (
+            <Button
+              title="Record a loan"
+              icon={HandCoins}
+              variant="outline"
+              onPress={() => router.push({ pathname: "/finance/loan", params: who })}
+            />
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Training history</Text>
@@ -133,6 +261,8 @@ function Row({ label, value, last }: { label: string; value?: string | null; las
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   flex: { flex: 1 },
+  actions: { gap: spacing.sm },
+  itemRow: { gap: spacing.xs, paddingTop: spacing.sm },
   header: { alignItems: "center", gap: 4 },
   avatar: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
   avatarText: { fontSize: 22, fontWeight: "700" },

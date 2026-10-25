@@ -105,16 +105,6 @@ export const sendPhoneCode = (phone: string) =>
 export const verifyPhoneCode = (phone: string, code: string) =>
   api.anon.post<{ verification_token: string }>(`${BASE}/phone-code/verify`, { phone, code });
 
-export const sendIdCode = (nationalId: string) =>
-  api.anon.post<{ sent: boolean; message?: string }>(`${BASE}/fayida/send-code`, { national_id: nationalId });
-
-/** `source` is "mock" while the ID service is a test stub. */
-export const verifyIdCode = (nationalId: string, otp: string) =>
-  api.anon.post<{ fayida_token: string; source: "fayida" | "mock"; data: IdDetails }>(
-    `${BASE}/fayida/verify-code`,
-    { national_id: nationalId, otp },
-  );
-
 /** Returns the private status token: kept on the phone so she can check later. */
 export const submitRegistration = (data: RegistrationInput) =>
   api.anon.post<{ received: true; status_token: string }>(`${BASE}/register`, data);
