@@ -1,22 +1,24 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import type { ParticipantRow } from "@/lib/types";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { ChevronRight, CircleAlert, UserPlus, UsersRound, X } from "lucide-react-native";
+import { UserPlus, UsersRound, X } from "lucide-react-native";
 import { listParticipantsPage, participantsCopy } from "@/lib/data";
 import { ApiError } from "@/lib/api";
 import { updatedLabel, useListCopy } from "@/lib/offline-lists";
 import { useAuth } from "@/lib/auth";
-import { initialsOf } from "@/lib/user";
+import { participantRow } from "@/components/register-rows";
 import {
   BottomSheet,
   Button,
   ChoiceRow,
+  Chips,
   EmptyState,
   FAB,
   ListSkeleton,
+  PersonRow,
   SearchBar,
-  StatusPill,
   Text,
 } from "@/components/ui";
 import { colors, radius, spacing, topics } from "@/theme";
@@ -41,6 +43,16 @@ const FILTER_LABELS: Record<keyof Filters, string> = {
 /** Participants fetched per page as the list scrolls. */
 const PAGE_SIZE = 30;
 
+/** The chips above the list: one quick filter at a time, on top of the filter sheet. */
+const CHIPS: { label: string; value: string; query?: Record<string, string>; test?: (p: ParticipantRow) => boolean }[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "submitted", query: { review_status: "submitted" }, test: (p) => p.review_status === "submitted" },
+  { label: "Approved", value: "approved", query: { review_status: "approved" }, test: (p) => p.review_status === "approved" },
+  { label: "Female", value: "female", query: { sex: "female" }, test: (p) => p.sex === "female" },
+  { label: "Youth", value: "youth", query: { is_youth: "yes" }, test: (p) => !!p.is_youth },
+  { label: "Disability", value: "disability", query: { disability: "yes" }, test: (p) => !!p.disability },
+];
+
 const yesNo = [
   { label: "Yes", value: "yes" as const },
   { label: "No", value: "no" as const },
@@ -53,6 +65,8 @@ export default function Participants() {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Filters>({});
   const [sheet, setSheet] = useState(false);
+  const [chip, setChip] = useState("all");
+  const quick = CHIPS.find((c) => c.value === chip);
   // Wait for a pause in typing before asking the server.
   const [term, setTerm] = useState("");
   useEffect(() => {
@@ -73,10 +87,11 @@ export default function Participants() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["participants", "page", term, filters],
+    queryKey: ["participants", "page", term, filters, chip],
     initialPageParam: 0,
     queryFn: ({ pageParam }) =>
       listParticipantsPage({
+        ...quick?.query,
         q: term || undefined,
         status: filters.status,
         sex: filters.sex,
@@ -103,12 +118,14 @@ export default function Participants() {
           (!filters.sex || r.sex === filters.sex) &&
           yes(r.is_youth, filters.youth) &&
           yes(r.disability, filters.disability) &&
-          yes(r.consent_given, filters.consent),
+          yes(r.consent_given, filters.consent) &&
+          (!quick?.test || quick.test(r)),
       )
     : (data?.pages.flatMap((p) => p.rows) ?? []);
   const total = showSaved ? filtered.length : (data?.pages[0]?.total ?? filtered.length);
 
   const activeFilters = (Object.keys(filters) as (keyof Filters)[]).filter((k) => filters[k]);
+  const narrowed = !!term || activeFilters.length > 0 || chip !== "all";
 
   const canRegister = can("participants", "write");
 
@@ -128,7 +145,7 @@ export default function Participants() {
   }
 
   return (
-    <View style={styles.flex}>
+    <View style={styles.page}>
       <View style={styles.toolbar}>
         <SearchBar
           value={search}
@@ -137,6 +154,7 @@ export default function Participants() {
           onFilterPress={() => setSheet(true)}
           filterCount={activeFilters.length}
         />
+        <Chips options={CHIPS} value={chip} onChange={setChip} />
         {activeFilters.length > 0 ? (
           <View style={styles.activeRow}>
             {activeFilters.map((k) => (
@@ -161,7 +179,7 @@ export default function Participants() {
         {!isLoading || showSaved ? (
           <Text style={styles.count}>
             {total.toLocaleString()} participant{total === 1 ? "" : "s"}
-            {term || activeFilters.length ? " found" : ""}
+            {narrowed ? " found" : ""}
           </Text>
         ) : null}
       </View>
@@ -184,7 +202,7 @@ export default function Participants() {
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            search || activeFilters.length ? (
+            narrowed ? (
               <EmptyState
                 icon={UsersRound}
                 title="No matches"
@@ -196,6 +214,7 @@ export default function Participants() {
                     onPress={() => {
                       setSearch("");
                       setFilters({});
+                      setChip("all");
                     }}
                   />
                 }
@@ -215,64 +234,12 @@ export default function Participants() {
               />
             )
           }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => {
-            const female = item.sex === "female";
-            const t = female ? topics.female : topics.participants;
-            const pills: { key: string; node: React.ReactNode }[] = [
-              {
-                key: "status",
-                node: (
-                  <StatusPill
-                    label={item.status}
-                    tone={item.status === "active" ? "green" : "grey"}
-                  />
-                ),
-              },
-              ...(!item.consent_given
-                ? [
-                    {
-                      key: "consent",
-                      node: <StatusPill label="No consent" tone="red" icon={CircleAlert} outline />,
-                    },
-                  ]
-                : []),
-              ...(item.is_youth ? [{ key: "youth", node: <StatusPill label="Youth" tone="blue" /> }] : []),
-              ...(item.disability
-                ? [{ key: "disability", node: <StatusPill label="Disability" tone="violet" /> }]
-                : []),
-            ];
-            const shown = pills.slice(0, 3);
-            const more = pills.length - shown.length;
-            const place = [item.woreda, item.region].filter(Boolean).join(", ");
-            return (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push(`/participants/${item.id}`)}
-                style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]}
-              >
-                <View style={[styles.avatar, { backgroundColor: t.tint }]}>
-                  <Text style={[styles.avatarText, { color: t.color }]}>{initialsOf(item.full_name)}</Text>
-                </View>
-                <View style={styles.flex}>
-                  <Text style={styles.name} numberOfLines={1}>
-                    {item.full_name}
-                  </Text>
-                  <Text style={styles.meta} numberOfLines={1}>
-                    {item.participant_id}
-                    {place ? ` · ${place}` : ""}
-                  </Text>
-                  <View style={styles.pills}>
-                    {shown.map((p) => (
-                      <View key={p.key}>{p.node}</View>
-                    ))}
-                    {more > 0 ? <Text style={styles.more}>+{more}</Text> : null}
-                  </View>
-                </View>
-                <ChevronRight size={18} color={colors.faint} />
-              </Pressable>
-            );
-          }}
+          renderItem={({ item, index }) => (
+            <PersonRow
+              {...participantRow(item, () => router.push(`/participants/${item.id}`))}
+              last={index === filtered.length - 1}
+            />
+          )}
         />
       )}
 
@@ -332,7 +299,8 @@ export default function Participants() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  toolbar: { padding: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
+  page: { flex: 1, backgroundColor: colors.white },
+  toolbar: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xs, gap: spacing.sm },
   activeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   activeChip: {
     flexDirection: "row",
@@ -346,25 +314,8 @@ const styles = StyleSheet.create({
   activeChipText: { fontSize: 12, fontWeight: "600", color: colors.primary, textTransform: "capitalize" },
   count: { fontSize: 13, color: colors.muted },
   offline: { fontSize: 12, fontWeight: "600", color: colors.warning },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: 96, flexGrow: 1 },
-  separator: { height: spacing.md },
+  list: { paddingBottom: 96, flexGrow: 1 },
   footer: { paddingVertical: spacing.lg },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 14,
-  },
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: 14, fontWeight: "700" },
-  name: { fontSize: 16, fontWeight: "600", color: colors.text },
-  meta: { fontSize: 13, color: colors.muted, marginTop: 1 },
-  pills: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.sm, flexWrap: "wrap" },
-  more: { fontSize: 12, fontWeight: "700", color: colors.muted },
   sheetBody: { gap: spacing.lg, paddingBottom: spacing.md },
   sheetActions: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
 });

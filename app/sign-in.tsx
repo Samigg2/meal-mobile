@@ -10,7 +10,7 @@ import { Button, ErrorText, Field, Text, Toggle } from "@/components/ui";
 import { LogoMark } from "@/components/brand-splash";
 import { apiBaseUrl } from "@/lib/api";
 import { savedRegistration } from "@/lib/public-registration";
-import { colors, radius, spacing } from "@/theme";
+import { colors, radius, shadow, spacing } from "@/theme";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,26 +50,17 @@ export default function SignIn() {
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" bounces={false}>
-        {/* Brand header: plain dark navy */}
-        <View style={[styles.brand, { paddingTop: insets.top + 32 }]}>
+        {/* Brand band: navy, logo and name; the sign-in card overlaps its bottom edge */}
+        <View style={[styles.brand, { paddingTop: insets.top + 40 }]}>
           <View style={styles.logo}>
             <LogoMark />
           </View>
           <Text style={styles.title}>RAYEE II</Text>
           <Text style={styles.subtitle}>Monitoring, Evaluation, Accountability & Learning</Text>
-          <View style={styles.chip}>
-            <View style={styles.chipDot} />
-            <Text style={styles.chipText}>Field data collection</Text>
-          </View>
         </View>
 
-        {/* Sign-in sheet */}
-        <View style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}>
-          <View style={styles.welcomeBlock}>
-            <Text style={styles.welcome}>Welcome back</Text>
-            <Text style={styles.welcomeHint}>Sign in with your programme account</Text>
-          </View>
-
+        <View style={styles.card}>
+          <Text style={styles.welcome}>Sign in</Text>
           <View style={styles.form}>
             <Field
               label="Email"
@@ -125,7 +116,9 @@ export default function SignIn() {
               disabled={!email || !password}
             />
           </View>
+        </View>
 
+        <View style={[styles.below, { paddingBottom: spacing.xl + insets.bottom }]}>
           <View style={styles.partnersBlock}>
             <View style={styles.partnersLabelRow}>
               <View style={styles.rule} />
@@ -178,17 +171,17 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.navy },
+  root: { flex: 1, backgroundColor: colors.white },
   flex: { flex: 1 },
-  container: { flexGrow: 1, backgroundColor: colors.navy },
+  container: { flexGrow: 1, backgroundColor: colors.white },
 
   brand: {
     alignItems: "center",
-    paddingBottom: 52,
+    backgroundColor: colors.navy,
+    paddingBottom: 96,
     paddingHorizontal: spacing.xl,
   },
   logo: { marginBottom: spacing.md },
-
   title: {
     fontSize: 24,
     fontWeight: "800",
@@ -202,40 +195,25 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  chip: {
-    marginTop: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-  },
-  chipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#4ADE80" },
-  chipText: { fontSize: 12, fontWeight: "600", color: colors.white },
 
-  sheet: {
-    flexGrow: 1,
+  card: {
+    marginTop: -64,
+    marginHorizontal: spacing.lg,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xl + 4,
-    gap: spacing.xl,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.lg,
+    ...shadow,
+    elevation: 6,
   },
-  welcomeBlock: { gap: 4 },
   welcome: {
-    fontSize: 24,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "700",
     color: colors.text,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
-  welcomeHint: { fontSize: 14, color: colors.muted },
   form: { gap: spacing.lg },
+  below: { flexGrow: 1, paddingHorizontal: spacing.xl, paddingTop: spacing.xl, gap: spacing.xl },
   optionsRow: {
     flexDirection: "row",
     alignItems: "center",

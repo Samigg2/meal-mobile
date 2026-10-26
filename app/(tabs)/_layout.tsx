@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { View, type ColorValue } from "react-native";
-import { ClipboardList, LayoutDashboard, Menu, UsersRound, type LucideIcon } from "lucide-react-native";
+import { ClipboardList, House, Menu, Store, UsersRound, type LucideIcon } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
 import { AppHeader } from "@/components/app-header";
@@ -28,7 +28,7 @@ function tabIcon(Icon: LucideIcon) {
 }
 
 export default function TabsLayout() {
-  const { ready, user } = useAuth();
+  const { ready, user, can } = useAuth();
   const insets = useSafeAreaInsets();
 
   if (!ready) return <StartScreen />;
@@ -37,7 +37,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        header: ({ options }) => <AppHeader title={String(options.title ?? "")} />,
+        header: () => <AppHeader />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.faint,
         tabBarLabelStyle: { fontSize: 11, fontFamily: fontFamilies["600"] },
@@ -54,8 +54,12 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Overview", tabBarIcon: tabIcon(LayoutDashboard) }} />
+      <Tabs.Screen name="index" options={{ title: "Home", tabBarIcon: tabIcon(House) }} />
       <Tabs.Screen name="participants" options={{ title: "Participants", tabBarIcon: tabIcon(UsersRound) }} />
+      <Tabs.Screen
+        name="enterprises"
+        options={{ title: "Enterprises", tabBarIcon: tabIcon(Store), href: can("enterprises") ? undefined : null }}
+      />
       <Tabs.Screen name="surveys" options={{ title: "Surveys", tabBarIcon: tabIcon(ClipboardList) }} />
       <Tabs.Screen name="more" options={{ title: "More", tabBarIcon: tabIcon(Menu) }} />
     </Tabs>

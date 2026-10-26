@@ -320,12 +320,14 @@ export function SearchBar({
   placeholder,
   onFilterPress,
   filterCount,
+  autoFocus,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder: string;
   onFilterPress?: () => void;
   filterCount?: number;
+  autoFocus?: boolean;
 }) {
   return (
     <View style={styles.searchRow}>
@@ -339,6 +341,7 @@ export function SearchBar({
           onChangeText={onChangeText}
           returnKeyType="search"
           autoCorrect={false}
+          autoFocus={autoFocus}
         />
       </View>
       {onFilterPress ? (
@@ -698,6 +701,98 @@ export function ListRow({
   );
 }
 
+/**
+ * A chat-style list row: round avatar with initials, bold name, grey line under it,
+ * date and status on the right, a thin line under the text (not under the avatar).
+ */
+export function PersonRow({
+  initials,
+  icon: Icon,
+  color = colors.primary,
+  tint = colors.primarySoft,
+  title,
+  meta,
+  date,
+  pill,
+  onPress,
+  last,
+}: {
+  initials: string;
+  /** Shown instead of the initials. */
+  icon?: LucideIcon;
+  color?: string;
+  tint?: string;
+  title: string;
+  meta?: string;
+  date?: string;
+  pill?: ReactNode;
+  onPress?: () => void;
+  last?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole={onPress ? "button" : undefined}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [styles.personRow, pressed && styles.optionPressed]}
+    >
+      <View style={[styles.personAvatar, { backgroundColor: tint }]}>
+        {Icon ? (
+          <Icon size={22} color={color} strokeWidth={2.2} />
+        ) : (
+          <Text style={[styles.personInitials, { color }]}>{initials}</Text>
+        )}
+      </View>
+      <View style={[styles.personBody, !last && styles.listRowDivider]}>
+        <View style={styles.flex}>
+          <Text style={styles.personTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          {meta ? (
+            <Text style={styles.personMeta} numberOfLines={1}>
+              {meta}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.personRight}>
+          {date ? <Text style={styles.personDate}>{date}</Text> : null}
+          {pill}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Filter chips in one scrolling row; the chosen one is tinted blue. */
+export function Chips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { label: string; value: T }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            onPress={() => onChange(o.value)}
+            style={[styles.filterChip, on && styles.filterChipOn]}
+          >
+            <Text style={[styles.filterChipText, on && styles.filterChipTextOn]}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 export function ProgressBar({ value, color = colors.primary }: { value: number; color?: string }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
@@ -1034,6 +1129,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   listRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  personRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingLeft: spacing.lg },
+  personAvatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  personInitials: { fontSize: 15, fontWeight: "700" },
+  personBody: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: 12,
+    paddingRight: spacing.lg,
+    minHeight: 70,
+  },
+  personTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  personMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  personRight: { alignItems: "flex-end", gap: 6 },
+  personDate: { fontSize: 12, color: colors.muted },
+  chipsRow: { gap: spacing.sm, paddingRight: spacing.lg },
+  filterChip: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: "#EEF1F5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterChipOn: { backgroundColor: colors.primarySoft },
+  filterChipText: { fontSize: 14, fontWeight: "600", color: colors.secondary },
+  filterChipTextOn: { color: colors.primaryDark },
   listTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
   listSubtitle: { fontSize: 12, color: colors.muted, marginTop: 1 },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: "#EEF2F7", overflow: "hidden" },

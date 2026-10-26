@@ -7,11 +7,13 @@ import type { PillTone } from "@/theme";
 import type {
   EmploymentPlacementRow,
   EnterpriseRow,
+  FeedbackRow,
   LoanApplicationRow,
   FinancialServiceProviderRow,
   SurveyAnswerRow,
   IndicatorRow,
   ParticipantRow,
+  SafeguardingCaseRow,
   SurveyQuestionRow,
   SurveyResponseRow,
   SurveyTemplateRow,
@@ -87,7 +89,7 @@ export const getNotifications = () =>
 export const markNotificationSeen = (queue_key: string, record_id: string) =>
   api.post<{ success: boolean }>("/notifications/seen", { queue_key, record_id });
 
-/* ------------------------- registers (from Overview) ------------------------ */
+/* ------------------------------- registers ------------------------------- */
 
 /** One page of a register, as the server's `/…/page` endpoints answer. */
 export type Page<T> = {
@@ -102,6 +104,8 @@ type PageQuery = {
   limit?: number;
   offset?: number;
   withTotal?: boolean;
+  /** A list's filter chip (review_status, status, …), as the server's page query names it. */
+  [filter: string]: string | number | boolean | undefined;
 };
 
 export const listEnterprisesPage = (q: PageQuery) => api.get<Page<EnterpriseRow>>("/enterprises/page", q);
@@ -117,6 +121,7 @@ export const enterprisesCopy = listCopy<EnterpriseRow>("enterprises", listEnterp
   region: e.region,
   woreda: e.woreda,
   review_status: e.review_status,
+  created_at: e.created_at,
 }) as EnterpriseRow);
 
 export type PlacementListRow = EmploymentPlacementRow & {
@@ -158,6 +163,12 @@ export const loansCopy = listCopy<LoanListRow>("loans", listLoansPage, (l) => ({
   application_date: l.application_date,
   status: l.status,
 }) as LoanListRow);
+
+/** Newest-first pages for the Home tabs (no copy kept offline). */
+export const listFeedbackPage = (q: PageQuery) => api.get<Page<FeedbackRow>>("/feedback/page", q);
+export const listConcernsPage = (q: PageQuery) =>
+  api.get<Page<Pick<SafeguardingCaseRow, "id" | "case_type" | "status" | "reported_date" | "created_at">>>("/safeguarding/page", q);
+export const listTrainingPage = (q: PageQuery) => api.get<Page<TrainingEventRow>>("/training/events/page", q);
 
 /* ------------------------------ participants ----------------------------- */
 
@@ -258,19 +269,24 @@ export const participantsCopy = listCopy<ParticipantRow>("participants", (q) => 
   date_of_birth: p.date_of_birth,
   education_level: p.education_level,
   review_status: p.review_status,
+  created_at: p.created_at,
   status: p.status,
   consent_given: p.consent_given,
   is_youth: p.is_youth,
   disability: p.disability,
 }) as ParticipantRow);
 
-/** The newest registrations for the Overview; offline, the first of the saved register (the server lists newest first). */
-export async function listRecentParticipants(limit = 5): Promise<ParticipantRow[]> {
+/** The newest rows of a register for Home; offline, the first of its saved copy (servers list newest first). */
+export async function newestOf<T>(
+  fetch: (q: { limit: number; offset: number }) => Promise<{ rows: T[] }>,
+  copy?: { read: () => Promise<{ data: { rows: T[] } } | null> },
+  limit = 8,
+): Promise<T[]> {
   try {
-    return (await listParticipantsPage({ limit })).rows;
+    return (await fetch({ limit, offset: 0 })).rows;
   } catch (error) {
-    if (error instanceof ApiError && error.isNetworkError) {
-      const saved = await participantsCopy.read();
+    if (copy && error instanceof ApiError && error.isNetworkError) {
+      const saved = await copy.read();
       if (saved) return saved.data.rows.slice(0, limit);
     }
     throw error;

@@ -1,41 +1,42 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { useEffect, useState, type ComponentProps } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react-native";
 import type { Page } from "@/lib/data";
 import { ApiError } from "@/lib/api";
 import { updatedLabel, useListCopy, type ListCopy } from "@/lib/offline-lists";
-import { EmptyState, IconBox, ListSkeleton, SearchBar, StatusPill, Text } from "@/components/ui";
-import { colors, spacing, topics, type PillTone, type TopicName } from "@/theme";
+import { Chips, EmptyState, ListSkeleton, PersonRow, SearchBar, Text } from "@/components/ui";
+import { colors, spacing, topics, type TopicName } from "@/theme";
 
 const PAGE_SIZE = 30;
 
-export interface RecordListItem {
-  id: string;
-  title: string;
-  meta: string;
-  pill?: { label: string; tone: PillTone };
-  /** Where a tap goes; no tap when there is nowhere the user may open. */
-  onPress?: () => void;
+type Row = Omit<ComponentProps<typeof PersonRow>, "last"> & { id: string };
+
+/** A filter chip: what the server is asked for, and the same test on the saved copy offline. */
+export interface ListChip<T> {
+  label: string;
+  value: string;
+  query?: Record<string, string>;
+  test?: (row: T) => boolean;
 }
 
 /**
- * A register opened from an Overview tile (enterprises, jobs, loans): searched and
- * paged by the server like the Participants tab. Rows open the person they are for.
+ * A register (enterprises, jobs, loans) as a chat-style list: search, filter chips,
+ * then rows searched, filtered and paged by the server like the Participants tab.
  */
 export function RecordList<T>({
   queryKey,
   fetch,
-  toItem,
+  toRow,
   topic,
   noun,
   searchHint,
   copy,
   searchText,
+  chips,
 }: {
   queryKey: string;
-  fetch: (q: { q?: string; limit: number; offset: number; withTotal: boolean }) => Promise<Page<T>>;
-  toItem: (row: T) => RecordListItem;
+  fetch: (q: { q?: string; limit: number; offset: number; withTotal: boolean } & Record<string, string | number | boolean | undefined>) => Promise<Page<T>>;
+  toRow: (row: T) => Row;
   topic: TopicName;
   /** Singular and plural, for the count line. */
   noun: [string, string];
@@ -43,20 +44,25 @@ export function RecordList<T>({
   /** The complete copy kept on the phone, and the words a search looks in. */
   copy: ListCopy<T>;
   searchText: (row: T) => string;
+  /** The first chip is "All". */
+  chips?: ListChip<T>[];
 }) {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
+  const [chip, setChip] = useState(chips?.[0]?.value ?? "");
   useEffect(() => {
     const t = setTimeout(() => setTerm(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
+  const current = chips?.find((c) => c.value === chip);
 
   const { data, isLoading, isError, error, refetch, isRefetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
-      queryKey: [queryKey, "page", term],
+      queryKey: [queryKey, "page", term, chip],
       initialPageParam: 0,
       queryFn: ({ pageParam }) =>
         fetch({
+          ...current?.query,
           q: term || undefined,
           limit: PAGE_SIZE,
           offset: pageParam,
@@ -68,11 +74,14 @@ export function RecordList<T>({
   const offline = isError && error instanceof ApiError && error.isNetworkError;
   const saved = useListCopy(copy, !!data && !isError);
   const words = term.toLowerCase();
-  const offlineRows = (saved.rows ?? []).filter((r) => !words || searchText(r).toLowerCase().includes(words));
+  const offlineRows = (saved.rows ?? []).filter(
+    (r) => (!words || searchText(r).toLowerCase().includes(words)) && (!current?.test || current.test(r)),
+  );
   const showSaved = offline && !!saved.rows;
-  const items = (showSaved ? offlineRows : (data?.pages.flatMap((p) => p.rows) ?? [])).map(toItem);
-  const total = showSaved ? items.length : (data?.pages[0]?.total ?? items.length);
+  const rows = (showSaved ? offlineRows : (data?.pages.flatMap((p) => p.rows) ?? [])).map(toRow);
+  const total = showSaved ? rows.length : (data?.pages[0]?.total ?? rows.length);
   const t = topics[topic];
+  const filtered = !!term || (!!chips && chip !== chips[0]?.value);
 
   if (isError && !showSaved) {
     return (
@@ -90,9 +99,10 @@ export function RecordList<T>({
   }
 
   return (
-    <View style={styles.flex}>
+    <View style={styles.page}>
       <View style={styles.toolbar}>
         <SearchBar value={search} onChangeText={setSearch} placeholder={searchHint} />
+        {chips ? <Chips options={chips} value={chip} onChange={setChip} /> : null}
         {showSaved ? (
           <Text style={styles.offline}>
             Offline — the {noun[1]} saved on this phone, updated {updatedLabel(saved.savedAt)}.
@@ -101,7 +111,7 @@ export function RecordList<T>({
         {!isLoading || showSaved ? (
           <Text style={styles.count}>
             {total.toLocaleString()} {total === 1 ? noun[0] : noun[1]}
-            {term ? " found" : ""}
+            {filtered ? " found" : ""}
           </Text>
         ) : null}
       </View>
@@ -109,7 +119,7 @@ export function RecordList<T>({
         <ListSkeleton />
       ) : (
         <FlatList
-          data={items}
+          data={rows}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           onEndReachedThreshold={0.5}
@@ -127,31 +137,11 @@ export function RecordList<T>({
               icon={t.icon}
               color={t.color}
               tint={t.tint}
-              title={term ? "No matches" : `No ${noun[1]} yet`}
-              message={term ? "Try a different search." : "Add one from the participant it belongs to."}
+              title={filtered ? "No matches" : `No ${noun[1]} yet`}
+              message={filtered ? "Try a different search or chip." : "Add one from the participant it belongs to."}
             />
           }
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole={item.onPress ? "button" : undefined}
-              disabled={!item.onPress}
-              onPress={item.onPress}
-              style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]}
-            >
-              <IconBox icon={t.icon} color={t.color} tint={t.tint} size={36} />
-              <View style={styles.flex}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.meta} numberOfLines={1}>
-                  {item.meta}
-                </Text>
-              </View>
-              {item.pill ? <StatusPill label={item.pill.label} tone={item.pill.tone} /> : null}
-              {item.onPress ? <ChevronRight size={18} color={colors.faint} /> : null}
-            </Pressable>
-          )}
+          renderItem={({ item, index }) => <PersonRow {...item} last={index === rows.length - 1} />}
         />
       )}
     </View>
@@ -159,28 +149,10 @@ export function RecordList<T>({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  toolbar: { padding: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
+  page: { flex: 1, backgroundColor: colors.white },
+  toolbar: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xs, gap: spacing.sm },
   count: { fontSize: 13, color: colors.muted },
   offline: { fontSize: 12, fontWeight: "600", color: colors.warning },
-  list: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-    flexGrow: 1,
-  },
-  separator: { height: spacing.sm },
+  list: { paddingBottom: spacing.xxl, flexGrow: 1 },
   footer: { paddingVertical: spacing.lg },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
-  title: { fontSize: 15, fontWeight: "600", color: colors.text },
-  meta: { fontSize: 12, color: colors.muted, marginTop: 1 },
 });

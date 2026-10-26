@@ -1,26 +1,65 @@
+import { useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import {
+  Bell,
+  BriefcaseBusiness,
   CalendarCheck,
+  ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleCheck,
+  ClipboardCheck,
+  ClipboardList,
   CloudUpload,
   GraduationCap,
+  HandCoins,
+  LayoutGrid,
   MessageSquareText,
   ShieldAlert,
+  ShieldCheck,
   UserPlus,
-  ClipboardList,
   type LucideIcon,
 } from "lucide-react-native";
-import { getDashboardStats, listRecentParticipants, type DashboardStats } from "@/lib/data";
+import {
+  enterprisesCopy,
+  listActivities,
+  listConcernsPage,
+  listEnterprisesPage,
+  listFeedbackPage,
+  listLoansPage,
+  listParticipantsPage,
+  listPlacementsPage,
+  listTrainingPage,
+  loansCopy,
+  newestOf,
+  participantsCopy,
+  placementsCopy,
+} from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { useQueue } from "@/lib/net";
-import { displayName, greeting, initialsOf } from "@/lib/user";
-import { Card, EmptyState, IconBox, Skeleton, Text } from "@/components/ui";
-import { roleLabel } from "@/lib/permissions";
+import { displayName, greeting } from "@/lib/user";
+import {
+  activityRow,
+  concernRow,
+  enterpriseRow,
+  feedbackRow,
+  jobRow,
+  loanRow,
+  participantRow,
+  trainingRow,
+} from "@/components/register-rows";
+import { Card, EmptyState, IconBox, PersonRow, Skeleton, Text } from "@/components/ui";
 import { colors, radius, shadow, spacing, topics, type TopicName } from "@/theme";
-import { useSettings } from "@/lib/reference";
+
+/** How many task tiles show before More (two rows of three, More being the sixth). */
+const FIRST = 5;
+/** Rows each Home tab shows before See all. */
+const NEWEST = 8;
+
+type Task = { label: string; icon: LucideIcon; topic: TopicName; go: () => void };
+type ListKey = "participants" | "enterprises" | "jobs" | "loans" | "feedback" | "concerns" | "attendance" | "workplan";
 
 const timeAgo = (ms: number) => {
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60_000));
@@ -30,209 +69,108 @@ const timeAgo = (ms: number) => {
   return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
 };
 
-const shortDate = (iso?: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })
-    : "—";
-
-const tone = (t: TopicName) => ({
-  color: topics[t].color,
-  tint: topics[t].tint,
-});
-
-function SectionTitle({ children }: { children: string }) {
-  return (
-    <View style={styles.sectionRow}>
-      <View style={styles.sectionBar} />
-      <Text style={styles.sectionTitle}>{children}</Text>
-    </View>
-  );
-}
-
-export default function Overview() {
-  const settings = useSettings();
+export default function Home() {
   const router = useRouter();
-  const { profile, roles, user, can } = useAuth();
+  const { can, profile, user } = useAuth();
   const queued = useQueue();
-  const stats = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: getDashboardStats,
-  });
-  // Only the five newest — the server lists newest first.
-  const people = useQuery({
-    queryKey: ["participants", "recent"],
-    queryFn: () => listRecentParticipants(5),
-  });
+  const [more, setMore] = useState(false);
+  const tabsRef = useRef<ScrollView>(null);
+  const [tabsAtEnd, setTabsAtEnd] = useState(false);
 
-  const { data, isLoading, isError, error, refetch, isRefetching, dataUpdatedAt } = stats;
-  const name = displayName(profile, user?.email);
-  const role = roles.length ? roles.map((r) => roleLabel(r)).join(", ") : "Awaiting role assignment";
-  const today = new Date().toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  // Every task the role may do, most used first; a role sees only its own.
+  const tasks: Task[] = [
+    can("participants", "write") && { label: "Register", icon: UserPlus, topic: "participants", go: () => router.push("/participants/new") },
+    can("surveys") && { label: "Survey", icon: ClipboardList, topic: "surveys", go: () => router.navigate("/(tabs)/surveys") },
+    can("training", "write") && { label: "Attendance", icon: GraduationCap, topic: "trainings", go: () => router.push("/training") },
+    can("safeguarding", "write") && { label: "Concern", icon: ShieldAlert, topic: "safeguarding", go: () => router.push("/safeguarding/new") },
+    can("feedback", "write") && { label: "Feedback", icon: MessageSquareText, topic: "disability", go: () => router.push("/feedback/new") },
+    can("monitoring", "write") && { label: "Work plan", icon: CalendarCheck, topic: "indicators", go: () => router.push("/activities") },
+    can("employment") && { label: "Jobs", icon: BriefcaseBusiness, topic: "jobs", go: () => router.push("/employment") },
+    can("finance") && { label: "Loans", icon: HandCoins, topic: "loans", go: () => router.push("/finance") },
+    can("surveys") && { label: "My responses", icon: ClipboardCheck, topic: "surveys", go: () => router.push("/surveys/mine") },
+    { label: "Offline queue", icon: CloudUpload, topic: "indicators", go: () => router.push("/sync") },
+    { label: "Notifications", icon: Bell, topic: "participants", go: () => router.push("/notifications") },
+    { label: "Your access", icon: ShieldCheck, topic: "enterprises", go: () => router.push("/access") },
+  ].filter((t): t is Task => !!t);
+  const folded = tasks.length > FIRST + 1;
+  const first = folded ? tasks.slice(0, FIRST) : tasks;
+  const rest = folded ? tasks.slice(FIRST) : [];
 
-  const recent = people.data ?? [];
+  // The lists under the tiles, each only for those who may see it; the arrow scrolls to the rest.
+  const lists = (
+    [
+      can("participants") && { key: "participants", label: "Participants" },
+      can("enterprises") && { key: "enterprises", label: "Enterprises" },
+      can("employment") && { key: "jobs", label: "Employment" },
+      can("finance") && { key: "loans", label: "Loans" },
+      can("feedback") && { key: "feedback", label: "Feedback" },
+      can("safeguarding") && { key: "concerns", label: "Concerns" },
+      can("training") && { key: "attendance", label: "Attendance" },
+      can("monitoring") && { key: "workplan", label: "Work plan" },
+    ] as const
+  ).filter((l): l is { key: ListKey; label: string } => !!l);
+  const [tab, setTab] = useState<ListKey | undefined>(lists[0]?.key);
+  const active = lists.find((l) => l.key === tab)?.key ?? lists[0]?.key;
 
-  // Field forms that work offline, each only for those who may fill it. Enterprise,
-  // loan and job are opened from the participant they are for.
-  const fieldWork: {
-    label: string;
-    icon: LucideIcon;
-    color: string;
-    tint: string;
-    go: () => void;
-  }[] = [
-    ...(can("participants", "write")
-      ? [
-          {
-            label: "Register",
-            icon: UserPlus,
-            ...tone("participants"),
-            go: () => router.push("/participants/new"),
-          },
-        ]
-      : []),
-    ...(can("surveys")
-      ? [
-          {
-            label: "Survey",
-            icon: ClipboardList,
-            ...tone("surveys"),
-            go: () => router.navigate("/(tabs)/surveys"),
-          },
-        ]
-      : []),
-    ...(can("training", "write")
-      ? [
-          {
-            label: "Attendance",
-            icon: GraduationCap,
-            ...tone("trainings"),
-            go: () => router.push("/training"),
-          },
-        ]
-      : []),
-    ...(can("safeguarding", "write")
-      ? [
-          {
-            label: "Concern",
-            icon: ShieldAlert,
-            ...tone("safeguarding"),
-            go: () => router.push("/safeguarding/new"),
-          },
-        ]
-      : []),
-    ...(can("feedback", "write")
-      ? [
-          {
-            label: "Feedback",
-            icon: MessageSquareText,
-            ...tone("disability"),
-            go: () => router.push("/feedback/new"),
-          },
-        ]
-      : []),
-    ...(can("monitoring", "write")
-      ? [
-          {
-            label: "Work plan",
-            icon: CalendarCheck,
-            ...tone("indicators"),
-            go: () => router.push("/activities"),
-          },
-        ]
-      : []),
-  ];
-
-  // Small numbers; the registers among them open their list.
-  const numbers = (d: DashboardStats): { topic: TopicName; label: string; value: number; go?: () => void }[] => [
-    {
-      topic: "participants",
-      label: "Participants",
-      value: d.participants,
-      go: () => router.navigate("/(tabs)/participants"),
+  const person = (id?: string | null) => (id && can("participants") ? () => router.push(`/participants/${id}`) : undefined);
+  const rows = useQuery({
+    queryKey: ["home", active],
+    enabled: !!active,
+    queryFn: async () => {
+      switch (active) {
+        case "participants":
+          return (await newestOf(listParticipantsPage, participantsCopy, NEWEST)).map((p) => participantRow(p, person(p.id)));
+        case "enterprises":
+          return (await newestOf(listEnterprisesPage, enterprisesCopy, NEWEST)).map((e) =>
+            enterpriseRow(e, person(e.owner_participant_id)),
+          );
+        case "jobs":
+          return (await newestOf(listPlacementsPage, placementsCopy, NEWEST)).map((j) => jobRow(j, person(j.participant_id)));
+        case "loans":
+          return (await newestOf(listLoansPage, loansCopy, NEWEST)).map((l) =>
+            loanRow(l, person(l.participant_id ?? l.enterprises?.owner_participant_id)),
+          );
+        case "feedback":
+          return (await newestOf(listFeedbackPage, undefined, NEWEST)).map(feedbackRow);
+        case "concerns":
+          return (await newestOf(listConcernsPage, undefined, NEWEST)).map(concernRow);
+        case "attendance":
+          return (await newestOf(listTrainingPage, undefined, NEWEST)).map((t) =>
+            trainingRow(t, can("training", "write") ? () => router.push(`/training/${t.id}`) : undefined),
+          );
+        case "workplan":
+          return (await listActivities())
+            .slice(0, NEWEST)
+            .map((a) => activityRow(a, can("monitoring", "write") ? () => router.push(`/activities/${a.id}`) : undefined));
+        default:
+          return [];
+      }
     },
-    { topic: "female", label: "Female", value: d.female },
-    {
-      topic: "youth",
-      label: `Youth ${settings.youth_min_age}–${settings.youth_max_age}`,
-      value: d.youth,
-    },
-    { topic: "disability", label: "Disability", value: d.disability },
-    ...(can("enterprises")
-      ? [
-          {
-            topic: "enterprises" as const,
-            label: "Enterprises",
-            value: d.enterprises,
-            go: () => router.push("/enterprises"),
-          },
-        ]
-      : []),
-    ...(can("employment")
-      ? [
-          {
-            topic: "jobs" as const,
-            label: "Jobs",
-            value: d.placements ?? 0,
-            go: () => router.push("/employment"),
-          },
-        ]
-      : []),
-    ...(can("finance")
-      ? [
-          {
-            topic: "loans" as const,
-            label: "Loans",
-            value: d.loans ?? 0,
-            go: () => router.push("/finance"),
-          },
-        ]
-      : []),
-    { topic: "trainings", label: "Trainings", value: d.trainingEvents },
-    { topic: "surveys", label: "Responses", value: d.surveyResponses },
-    {
-      topic: "indicators",
-      label: `On track of ${d.indicators}`,
-      value: d.onTrack,
-    },
-  ];
+  });
+  // Where See all goes; Feedback and Concerns have no full list on the phone.
+  const seeAll: Partial<Record<ListKey, () => void>> = {
+    participants: () => router.navigate("/(tabs)/participants"),
+    enterprises: () => router.navigate("/(tabs)/enterprises"),
+    jobs: () => router.push("/employment"),
+    loans: () => router.push("/finance"),
+    attendance: () => router.push("/training"),
+    workplan: () => router.push("/activities"),
+  };
+  const openAll = active ? seeAll[active] : undefined;
 
   return (
     <ScrollView
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={() => {
-            void refetch();
-            void people.refetch();
-          }}
-          tintColor={colors.primary}
-        />
+        <RefreshControl refreshing={rows.isRefetching} onRefresh={() => void rows.refetch()} tintColor={colors.primary} />
       }
     >
-      {/* Compact greeting card */}
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <View style={styles.flex}>
-            <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.name} numberOfLines={1}>
-              {name}
-            </Text>
-          </View>
-          <Text style={styles.date}>{today}</Text>
-        </View>
-        <View style={styles.rolePill}>
-          <Text style={styles.roleText}>{role}</Text>
-        </View>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/sync")} style={styles.syncLine}>
+      {/* Greeting and sync, one line each */}
+      <Pressable accessibilityRole="button" onPress={() => router.push("/sync")} style={styles.hero}>
+        <Text style={styles.hello} numberOfLines={1}>
+          {greeting()} {displayName(profile, user?.email).split(" ")[0]}
+        </Text>
+        <View style={styles.syncLine}>
           {queued.length > 0 ? (
             <>
               <CloudUpload size={14} color="#FCD34D" />
@@ -244,208 +182,145 @@ export default function Overview() {
             <>
               <CircleCheck size={14} color="#86EFAC" />
               <Text style={styles.syncText}>
-                {data?.savedAt
-                  ? `Offline · numbers saved ${timeAgo(new Date(data.savedAt).getTime())}`
-                  : `All data synced${dataUpdatedAt ? ` · ${timeAgo(dataUpdatedAt)}` : ""}`}
+                All data synced{rows.dataUpdatedAt ? ` · ${timeAgo(rows.dataUpdatedAt)}` : ""}
               </Text>
             </>
           )}
-        </Pressable>
+        </View>
+      </Pressable>
+
+      <View style={styles.grid}>
+        {first.map((t) => (
+          <Tile key={t.label} task={t} />
+        ))}
+        {folded ? (
+          <Tile
+            task={{
+              label: more ? "Less" : "More",
+              icon: more ? ChevronUp : LayoutGrid,
+              topic: "participants",
+              go: () => setMore((m) => !m),
+            }}
+          />
+        ) : null}
+        {more ? rest.map((t) => <Tile key={t.label} task={t} />) : null}
       </View>
 
-      {/* Field work first: it is what the officer opened the app for */}
-      {fieldWork.length > 0 ? (
-        <>
-          <SectionTitle>Field work</SectionTitle>
-          <View style={styles.grid}>
-            {fieldWork.map((f) => (
-              <Pressable
-                key={f.label}
-                accessibilityRole="button"
-                onPress={f.go}
-                style={({ pressed }) => [styles.tile, { borderBottomColor: f.color }, pressed && styles.pressed]}
-              >
-                {/* Like the web dashboard cards: solid icon circle, coloured bottom line. */}
-                <IconBox icon={f.icon} color={f.color} size={38} solid />
-                <Text style={styles.tileLabel} numberOfLines={1}>
-                  {f.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {can("enterprises", "write") || can("finance", "write") || can("employment", "write") ? (
-            <Text style={styles.fieldHint}>Enterprise, loan and job: open the participant they are for.</Text>
-          ) : null}
-        </>
-      ) : null}
-
-      {/* Numbers */}
-      {isLoading ? (
-        <View style={styles.grid}>
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} width="31.5%" height={64} borderRadius={radius.md} />
-          ))}
-        </View>
-      ) : isError ? (
-        <EmptyState
-          title="Could not load the overview"
-          message={error instanceof Error ? error.message : "Pull down to try again."}
-        />
-      ) : data ? (
-        <>
-          <SectionTitle>Programme</SectionTitle>
-          <View style={styles.grid}>
-            {numbers(data).map((n) => {
-              const t = topics[n.topic];
-              return (
-                <Pressable
-                  key={n.label}
-                  accessibilityRole={n.go ? "button" : undefined}
-                  disabled={!n.go}
-                  onPress={n.go}
-                  style={({ pressed }) => [styles.stat, { borderBottomColor: t.color }, pressed && styles.pressed]}
-                >
-                  <View style={styles.statTop}>
-                    <View style={styles.statFigure}>
-                      <IconBox icon={t.icon} color={t.color} size={24} solid />
-                      <Text style={[styles.statValue, { color: t.color }]}>{n.value.toLocaleString()}</Text>
-                    </View>
-                    {n.go ? <ChevronRight size={14} color={colors.faint} /> : null}
-                  </View>
-                  <Text style={styles.statLabel} numberOfLines={1}>
-                    {n.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Recent activity */}
-          {recent.length > 0 ? (
-            <>
-              <SectionTitle>Recently registered</SectionTitle>
-              <Card style={styles.listCard}>
-                {recent.map((p, i) => (
-                  <Pressable
-                    key={p.id}
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/participants/${p.id}`)}
-                    style={[styles.activityRow, i < recent.length - 1 && styles.activityDivider]}
-                  >
-                    <View
-                      style={[
-                        styles.avatar,
-                        {
-                          backgroundColor: p.sex === "female" ? topics.female.tint : topics.participants.tint,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.avatarText,
-                          {
-                            color: p.sex === "female" ? topics.female.color : topics.participants.color,
-                          },
-                        ]}
-                      >
-                        {initialsOf(p.full_name)}
-                      </Text>
-                    </View>
-                    <View style={styles.flex}>
-                      <Text style={styles.activityName} numberOfLines={1}>
-                        {p.full_name}
-                      </Text>
-                      <Text style={styles.activityMeta}>Registered · {shortDate(p.created_at)}</Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </Card>
-            </>
-          ) : null}
-
-          {data.topRegions.length > 0 ? (
-            <Card style={styles.regions}>
-              <Text style={styles.cardTitle}>Reach by region</Text>
-              {data.topRegions.map((row) => {
-                const max = Math.max(...data.topRegions.map((r) => r.count), 1);
+      {lists.length > 0 ? (
+        <Card style={styles.listCard}>
+          <View style={styles.tabsRow}>
+            <ScrollView
+              ref={tabsRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabs}
+              scrollEventThrottle={64}
+              onScroll={(e) => {
+                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                setTabsAtEnd(contentOffset.x + layoutMeasurement.width >= contentSize.width - 8);
+              }}
+            >
+              {lists.map((l) => {
+                const on = l.key === active;
                 return (
-                  <View key={row.region} style={styles.barRow}>
-                    <Text style={styles.barLabel} numberOfLines={1}>
-                      {row.region}
-                    </Text>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${Math.round((row.count / max) * 100)}%` }]} />
-                    </View>
-                    <Text style={styles.barValue}>{row.count}</Text>
-                  </View>
+                  <Pressable
+                    key={l.key}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => setTab(l.key)}
+                    style={[styles.tab, on && styles.tabOn]}
+                  >
+                    <Text style={[styles.tabText, on && styles.tabTextOn]}>{l.label}</Text>
+                  </Pressable>
                 );
               })}
-            </Card>
-          ) : null}
-        </>
+            </ScrollView>
+            {lists.length > 3 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tabsAtEnd ? "Back to the first lists" : "More lists"}
+                onPress={() =>
+                  tabsAtEnd ? tabsRef.current?.scrollTo({ x: 0, animated: true }) : tabsRef.current?.scrollToEnd({ animated: true })
+                }
+                style={styles.arrow}
+              >
+                {tabsAtEnd ? (
+                  <ChevronLeft size={18} color={colors.secondary} />
+                ) : (
+                  <ChevronRight size={18} color={colors.secondary} />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+
+          {rows.isLoading ? (
+            <View style={styles.skeletons}>
+              {Array.from({ length: 4 }, (_, i) => (
+                <View key={i} style={styles.skeletonRow}>
+                  <Skeleton width={46} height={46} borderRadius={23} />
+                  <Skeleton width="55%" height={14} />
+                </View>
+              ))}
+            </View>
+          ) : rows.isError ? (
+            <EmptyState
+              title="Could not load the list"
+              message={rows.error instanceof Error ? rows.error.message : "Pull down to try again."}
+            />
+          ) : (rows.data ?? []).length === 0 ? (
+            <EmptyState title="Nothing here yet" message="New records show here first." />
+          ) : (
+            <>
+              {(rows.data ?? []).map((r, i, all) => (
+                <PersonRow key={r.id} {...r} last={i === all.length - 1 && !openAll} />
+              ))}
+              {openAll ? (
+                <Pressable accessibilityRole="button" onPress={openAll} style={styles.seeAll}>
+                  <Text style={styles.seeAllText}>See all</Text>
+                  <ChevronRight size={16} color={colors.primary} />
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </Card>
       ) : null}
     </ScrollView>
   );
 }
 
+/** A task tile like the web dashboard cards: solid icon circle, name, coloured bottom line. */
+function Tile({ task }: { task: Task }) {
+  const t = topics[task.topic];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={task.go}
+      style={({ pressed }) => [styles.tile, { borderBottomColor: t.color }, pressed && styles.pressed]}
+    >
+      <IconBox icon={task.icon} color={t.color} size={40} solid />
+      <Text style={styles.tileLabel} numberOfLines={1}>
+        {task.label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    padding: spacing.lg,
-    gap: spacing.md,
-    paddingBottom: spacing.xxl * 2,
-  },
-  flex: { flex: 1 },
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl * 2 },
   hero: {
     backgroundColor: colors.navy,
     borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: 4,
   },
-  heroTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  greeting: { fontSize: 13, color: colors.onNavyMuted },
-  name: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.white,
-    letterSpacing: -0.3,
-    marginTop: 2,
-  },
-  date: { fontSize: 12, color: colors.onNavyMuted },
-  rolePill: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-  },
-  roleText: { fontSize: 12, color: colors.white, fontWeight: "600" },
-  syncLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 28,
-    marginTop: 2,
-  },
+  hello: { fontSize: 17, fontWeight: "700", color: colors.white, letterSpacing: -0.2 },
+  syncLine: { flexDirection: "row", alignItems: "center", gap: 6 },
   syncText: { fontSize: 12, color: colors.onNavyMuted },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  sectionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: spacing.sm,
-  },
-  sectionBar: { width: 4, height: 14, borderRadius: 2, backgroundColor: colors.primary },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.secondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  fieldHint: { fontSize: 12, color: colors.muted },
   pressed: { opacity: 0.85 },
   tile: {
-    width: "31.5%",
+    width: "31.8%",
     alignItems: "center",
     gap: 6,
     paddingVertical: spacing.md,
@@ -455,71 +330,37 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   tileLabel: { fontSize: 12, fontWeight: "600", color: colors.text },
-  stat: {
-    width: "31.5%",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderBottomWidth: 3,
-    ...shadow,
-  },
-  statTop: {
+  listCard: { padding: 0, overflow: "hidden", marginTop: spacing.xs },
+  tabsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  statFigure: { flexDirection: "row", alignItems: "center", gap: 6 },
-  statValue: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
-  statLabel: { fontSize: 11, fontWeight: "600", color: colors.secondary, marginTop: 4 },
-  listCard: { padding: 0 },
-  activityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    minHeight: 56,
-  },
-  activityDivider: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  tabs: { gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  tab: { paddingHorizontal: 12, minHeight: 34, borderRadius: 8, justifyContent: "center" },
+  tabOn: { backgroundColor: colors.primarySoft },
+  tabText: { fontSize: 15, fontWeight: "600", color: colors.muted },
+  tabTextOn: { color: colors.primaryDark },
+  arrow: {
+    width: 40,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.border,
   },
-  avatarText: { fontSize: 13, fontWeight: "700" },
-  activityName: { fontSize: 14, fontWeight: "600", color: colors.text },
-  activityMeta: { fontSize: 12, color: colors.muted },
-  regions: { gap: spacing.md },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.text,
-    letterSpacing: -0.2,
+  skeletons: { padding: spacing.lg, gap: spacing.lg },
+  skeletonRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  seeAll: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 2,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
-  barRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  barLabel: { width: 90, fontSize: 12, color: colors.secondary },
-  barTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: "#EEF2F7",
-    borderRadius: radius.pill,
-    overflow: "hidden",
-  },
-  barFill: {
-    height: 8,
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-  },
-  barValue: {
-    width: 32,
-    textAlign: "right",
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.text,
-  },
+  seeAllText: { fontSize: 14, fontWeight: "600", color: colors.primary },
 });

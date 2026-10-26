@@ -2,18 +2,18 @@ import { useRouter } from "expo-router";
 import { loansCopy, listLoansPage } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { RecordList } from "@/components/record-list";
-import type { PillTone } from "@/theme";
+import { loanRow } from "@/components/register-rows";
 
-const STATUS: Record<string, PillTone> = {
-  applied: "blue",
-  approved: "violet",
-  rejected: "red",
-  disbursed: "amber",
-  repaying: "amber",
-  closed: "green",
-};
+const STATUS = [
+  { label: "Applied", value: "applied" },
+  { label: "Approved", value: "approved" },
+  { label: "Disbursed", value: "disbursed" },
+  { label: "Repaying", value: "repaying" },
+  { label: "Closed", value: "closed" },
+  { label: "Rejected", value: "rejected" },
+];
 
-/** Loans from the Overview tile; a row opens the borrower, or the owner of a borrowing enterprise. */
+/** Loans; a row opens the borrower, or the owner of a borrowing enterprise. */
 export default function Loans() {
   const router = useRouter();
   const { can } = useAuth();
@@ -26,21 +26,13 @@ export default function Loans() {
       topic="loans"
       noun={["loan", "loans"]}
       searchHint="Search borrower"
-      toItem={(l) => {
+      chips={[
+        { label: "All", value: "all" },
+        ...STATUS.map((s) => ({ ...s, query: { status: s.value }, test: (l: { status: string }) => l.status === s.value })),
+      ]}
+      toRow={(l) => {
         const person = l.participant_id ?? l.enterprises?.owner_participant_id ?? null;
-        return {
-          id: l.id,
-          title: l.borrower,
-          meta: [
-            `${Number(l.amount_approved ?? l.amount_requested).toLocaleString()} ${l.currency}`,
-            l.provider_name,
-            l.application_date,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-          pill: { label: l.status, tone: STATUS[l.status] ?? "grey" },
-          onPress: person && can("participants") ? () => router.push(`/participants/${person}`) : undefined,
-        };
+        return loanRow(l, person && can("participants") ? () => router.push(`/participants/${person}`) : undefined);
       }}
     />
   );

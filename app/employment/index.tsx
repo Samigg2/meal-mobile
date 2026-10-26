@@ -1,11 +1,10 @@
 import { useRouter } from "expo-router";
-import { placementsCopy, listPlacementsPage, PLACEMENT_TYPES } from "@/lib/data";
+import { placementsCopy, listPlacementsPage } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { RecordList } from "@/components/record-list";
+import { jobRow } from "@/components/register-rows";
 
-const typeLabel = (v: string) => PLACEMENT_TYPES.find((t) => t.value === v)?.label ?? v.replace(/_/g, " ");
-
-/** Jobs from the Overview tile; a row opens the person. */
+/** Jobs; a row opens the person. */
 export default function Jobs() {
   const router = useRouter();
   const { can } = useAuth();
@@ -18,20 +17,17 @@ export default function Jobs() {
       topic="jobs"
       noun={["job", "jobs"]}
       searchHint="Search person, employer or job"
-      toItem={(j) => {
+      chips={[
+        { label: "All", value: "all" },
+        { label: "Placed", value: "placed", query: { status: "placed" }, test: (j) => j.status === "placed" },
+        { label: "Retained", value: "retained", query: { status: "retained" }, test: (j) => j.status === "retained" },
+        { label: "Exited", value: "exited", query: { status: "exited" }, test: (j) => j.status === "exited" },
+        // Needs the next follow-up date, which the saved copy does not keep: online only.
+        { label: "Follow-up overdue", value: "overdue", query: { follow_up: "overdue" }, test: () => false },
+      ]}
+      toRow={(j) => {
         const person = j.participant_id;
-        return {
-          id: j.id,
-          title: j.participant_name,
-          meta: [j.job_title, j.employer_name, typeLabel(j.placement_type)].filter(Boolean).join(" · "),
-          pill: j.verified_on
-            ? { label: "Verified", tone: "green" }
-            : {
-                label: j.status === "exited" ? "Exited" : "Pending",
-                tone: j.status === "exited" ? "grey" : "amber",
-              },
-          onPress: person && can("participants") ? () => router.push(`/participants/${person}`) : undefined,
-        };
+        return jobRow(j, person && can("participants") ? () => router.push(`/participants/${person}`) : undefined);
       }}
     />
   );

@@ -72,7 +72,6 @@ export default function RootLayout() {
             <Stack.Screen name="training/[id]" options={{ title: "Take attendance" }} />
             <Stack.Screen name="safeguarding/new" options={{ title: "Report a concern" }} />
             <Stack.Screen name="feedback/new" options={{ title: "Record feedback" }} />
-            <Stack.Screen name="enterprises/index" options={{ title: "Enterprises" }} />
             <Stack.Screen name="finance/index" options={{ title: "Loans" }} />
             <Stack.Screen name="employment/index" options={{ title: "Jobs" }} />
             <Stack.Screen name="profile" options={{ title: "My profile" }} />
@@ -85,6 +84,7 @@ export default function RootLayout() {
             <Stack.Screen name="activities/index" options={{ title: "Work plan" }} />
             <Stack.Screen name="activities/[id]" options={{ title: "Update progress" }} />
             <Stack.Screen name="sync" options={{ title: "Offline queue" }} />
+            <Stack.Screen name="search" options={{ title: "Search" }} />
             <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
             <Stack.Screen name="forgot-password" options={{ title: "Forgot password" }} />
             <Stack.Screen name="access" options={{ title: "Your access" }} />
