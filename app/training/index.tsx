@@ -63,7 +63,7 @@ export default function TrainingList() {
       renderItem={({ item }) => (
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: "/training/[id]", params: { id: item.id } })}
+          onPress={() => router.push({ pathname: "/training/event", params: { id: item.id } })}
           style={({ pressed }) => [styles.row, pressed && { opacity: 0.9 }]}
         >
           <IconBox icon={GraduationCap} color={topics.trainings.color} tint={topics.trainings.tint} size={40} />

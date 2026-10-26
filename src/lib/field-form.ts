@@ -113,6 +113,11 @@ export function useLiveErrors(check: () => Errors) {
       setServer({});
       return count === 0;
     },
+    /** Next pressed on a stepped form: show this step's messages; true when its fields are fine. */
+    checkStep: (names: string[]) => {
+      setTouched((prev) => ({ ...prev, ...Object.fromEntries(names.map((n) => [n, true as const])) }));
+      return names.every((n) => !found[n]);
+    },
     setServer,
   };
 }

@@ -12,6 +12,13 @@
       "expo-secure-store",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "MEAL MIS uses the camera to photograph documents, such as a signed loan agreement or a Kebele ID.",
+          "photosPermission": "MEAL MIS opens your photos so you can attach a document you already photographed."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "MEAL MIS uses your location to record where a survey response was collected."

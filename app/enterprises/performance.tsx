@@ -6,7 +6,7 @@ import type { Targeted } from "@/lib/queue";
 import { todayISO } from "@/lib/participant-form";
 import { useLookupOptions } from "@/lib/reference";
 import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
-import { FormCard, FormScreen, SavedNotice } from "@/components/field-form";
+import { FormCard, FormScreen, FormStep, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { Field, Loading, Select } from "@/components/ui";
 
@@ -160,7 +160,24 @@ function VisitForm({
   if (done) return <SavedNotice queued={done === "queued"} what="visit" />;
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Save the visit" saving={saving} onSave={handleSave}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle="Save the visit"
+      saving={saving}
+      onSave={handleSave}
+      steps={{
+        titles: ["Period & money", "Workers", "Markets"],
+        fields: [
+          ["period_start", "period_end", "revenue", "profit"],
+          ["employees_male", "employees_female", "youth_employees_male", "youth_employees_female", "employees_disability"],
+          ["markets_count", "products_count"],
+        ],
+        check: live.checkStep,
+        errors,
+      }}
+    >
+      <FormStep index={0}>
       <FormCard title={name || "Enterprise visit"} hint="Figures for the period, as the owner reports them or the records show.">
         <DateField label="Period start" required value={start} onChange={(v) => { setStart(v); live.touch("period_start"); live.touch("period_end"); }} max={todayISO()} error={errors.period_start} />
         <DateField label="Period end" required value={end} onChange={(v) => { setEnd(v); live.touch("period_end"); }} max={todayISO()} error={errors.period_end} />
@@ -175,6 +192,8 @@ function VisitForm({
           error={errors.profit}
         />
       </FormCard>
+      </FormStep>
+      <FormStep index={1}>
       <FormCard title="Workers">
         <Field label="Male workers" required value={men} onChangeText={setMen} onBlur={() => live.touch("employees_male")} keyboardType="number-pad" error={errors.employees_male} />
         <Field label="Female workers" required value={women} onChangeText={setWomen} onBlur={() => live.touch("employees_female")} keyboardType="number-pad" error={errors.employees_female} />
@@ -189,6 +208,8 @@ function VisitForm({
         />
         <Field label="Workers with a disability" value={disabled} onChangeText={setDisabled} onBlur={() => live.touch("employees_disability")} keyboardType="number-pad" error={errors.employees_disability} />
       </FormCard>
+      </FormStep>
+      <FormStep index={2}>
       <FormCard title="Markets">
         <Field label="Markets sold to" required value={markets} onChangeText={setMarkets} onBlur={() => live.touch("markets_count")} keyboardType="number-pad" error={errors.markets_count} />
         <Field label="Products / services" required value={products} onChangeText={setProducts} onBlur={() => live.touch("products_count")} keyboardType="number-pad" error={errors.products_count} />
@@ -196,6 +217,7 @@ function VisitForm({
         {sources.length > 0 ? <Select label="Data source" value={source} options={sources} onChange={setSource} /> : null}
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
       </FormCard>
+      </FormStep>
     </FormScreen>
   );
 }

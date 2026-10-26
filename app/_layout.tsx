@@ -68,7 +68,7 @@ export default function RootLayout() {
             <Stack.Screen name="participants/edit/[id]" options={{ title: "Edit participant" }} />
             <Stack.Screen name="surveys/[id]" options={{ title: "Collect response" }} />
             <Stack.Screen name="surveys/mine" options={{ title: "My responses" }} />
-            <Stack.Screen name="training/index" options={{ title: "Training attendance" }} />
+            <Stack.Screen name="training/index" options={{ title: "Trainings" }} />
             <Stack.Screen name="training/[id]" options={{ title: "Take attendance" }} />
             <Stack.Screen name="safeguarding/new" options={{ title: "Report a concern" }} />
             <Stack.Screen name="feedback/new" options={{ title: "Record feedback" }} />
@@ -76,6 +76,8 @@ export default function RootLayout() {
             <Stack.Screen name="employment/index" options={{ title: "Jobs" }} />
             <Stack.Screen name="profile" options={{ title: "My profile" }} />
             <Stack.Screen name="enterprises/new" options={{ title: "New enterprise" }} />
+            <Stack.Screen name="enterprises/[id]" options={{ title: "Enterprise" }} />
+            <Stack.Screen name="training/event" options={{ title: "Training" }} />
             <Stack.Screen name="enterprises/performance" options={{ title: "Enterprise visit" }} />
             <Stack.Screen name="finance/loan" options={{ title: "Record a loan" }} />
             <Stack.Screen name="finance/repayment" options={{ title: "Record a repayment" }} />
@@ -88,6 +90,7 @@ export default function RootLayout() {
             <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
             <Stack.Screen name="forgot-password" options={{ title: "Forgot password" }} />
             <Stack.Screen name="access" options={{ title: "Your access" }} />
+            <Stack.Screen name="documents" options={{ title: "Documents" }} />
             {/* mealmis://fayida: back from Fayida's page; steps aside at once. */}
             <Stack.Screen name="fayida" options={{ headerShown: false, animation: "none" }} />
           </Stack>

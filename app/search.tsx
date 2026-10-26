@@ -72,7 +72,14 @@ export default function Search() {
   const open = (id?: string | null) => (id && people ? () => router.push(`/participants/${id}`) : undefined);
   const groups: { title: string; rows: (ComponentProps<typeof PersonRow> & { id: string })[] }[] = [
     { title: "Participants", rows: (participants.data ?? []).map((p) => participantRow(p, open(p.id))) },
-    { title: "Enterprises", rows: (enterprises.data ?? []).map((e) => enterpriseRow(e, open(e.owner_participant_id))) },
+    {
+      title: "Enterprises",
+      rows: (enterprises.data ?? []).map((e) =>
+        enterpriseRow(e, () =>
+          router.push({ pathname: "/enterprises/[id]", params: { id: e.id, ownerName: e.owner_name ?? "" } }),
+        ),
+      ),
+    },
     { title: "Jobs", rows: (jobs.data ?? []).map((j) => jobRow(j, open(j.participant_id))) },
   ].filter((g) => g.rows.length > 0);
   const loading = participants.isFetching || enterprises.isFetching || jobs.isFetching;

@@ -1,13 +1,45 @@
-import { forwardRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  forwardRef,
+  useContext,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { CircleCheck, CloudUpload, Crosshair, Plus } from "lucide-react-native";
-import { Button, Card, ErrorText, Field, Select, StickyFooter, Text } from "@/components/ui";
+import { Button, Card, ErrorText, Field, Select, StepBar, StickyFooter, Text } from "@/components/ui";
 import { useLocations } from "@/lib/reference";
 import { colors, spacing } from "@/theme";
 
-/** The shell of a field form: scrolling fields, the error line on top, the save button at the bottom. */
+/** The step a stepped FormScreen shows; null when the form is one page. */
+const StepContext = createContext<number | null>(null);
+
+/** One step of a stepped form: shown only while it is the current one. */
+export function FormStep({ index, children }: { index: number; children: ReactNode }) {
+  const current = useContext(StepContext);
+  return current === null || current === index ? <>{children}</> : null;
+}
+
+/** A long form in steps (the participant register's way): titles and the fields each step holds. */
+export interface FormSteps {
+  titles: string[];
+  fields: string[][];
+  /** useLiveErrors().checkStep: shows the step's messages, true when it is fine. */
+  check: (names: string[]) => boolean;
+  /** The messages shown now: a failed save opens the first step with one. */
+  errors: Record<string, string | undefined>;
+}
+
+/**
+ * The shell of a field form: scrolling fields, the error line on top, the save
+ * button at the bottom. With `steps` the form is filled one step at a time:
+ * Next checks only that step, Back goes back, the last step saves.
+ */
 export const FormScreen = forwardRef<
   ScrollView,
   {
@@ -15,17 +47,50 @@ export const FormScreen = forwardRef<
     saveTitle: string;
     saving: boolean;
     onSave: () => void;
+    steps?: FormSteps;
     children: ReactNode;
   }
->(function FormScreen({ error, saveTitle, saving, onSave, children }, ref) {
+>(function FormScreen({ error, saveTitle, saving, onSave, steps, children }, ref) {
+  const [step, setStep] = useState(0);
+  const inner = useRef<ScrollView>(null);
+  useImperativeHandle(ref, () => inner.current as ScrollView);
+  const last = steps ? steps.titles.length - 1 : 0;
+  const go = (i: number) => {
+    setStep(i);
+    inner.current?.scrollTo({ y: 0, animated: false });
+  };
+  // A save that failed: open the first step holding a field with a message.
+  const bad = steps?.fields.findIndex((names) => names.some((n) => steps.errors[n]));
+  useEffect(() => {
+    if (error && bad !== undefined && bad >= 0) setStep(bad);
+  }, [error, bad]);
+
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView ref={ref} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={inner} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        {steps ? <StepBar steps={steps.titles} step={step} onStep={(i) => i < step && go(i)} /> : null}
         <ErrorText>{error}</ErrorText>
-        {children}
+        <StepContext.Provider value={steps ? step : null}>{children}</StepContext.Provider>
       </ScrollView>
       <StickyFooter>
-        <Button title={saveTitle} onPress={onSave} loading={saving} />
+        {steps ? (
+          <View style={styles.footerRow}>
+            {step > 0 ? (
+              <View style={styles.grow}>
+                <Button title="Back" variant="outline" onPress={() => go(step - 1)} />
+              </View>
+            ) : null}
+            <View style={styles.grow}>
+              {step < last ? (
+                <Button title="Next step" onPress={() => steps.check(steps.fields[step]) && go(step + 1)} />
+              ) : (
+                <Button title={saveTitle} onPress={onSave} loading={saving} />
+              )}
+            </View>
+          </View>
+        ) : (
+          <Button title={saveTitle} onPress={onSave} loading={saving} />
+        )}
       </StickyFooter>
     </KeyboardAvoidingView>
   );
@@ -88,6 +153,8 @@ export function SavedNotice({ queued, what, another = true }: { queued: boolean;
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  footerRow: { flexDirection: "row", gap: spacing.sm },
+  grow: { flex: 1 },
   container: {
     padding: spacing.lg,
     gap: spacing.md,

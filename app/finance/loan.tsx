@@ -6,7 +6,7 @@ import { LOAN_PRODUCTS, listProviders, type LoanInput, type LoanProduct } from "
 import { todayISO } from "@/lib/participant-form";
 import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
 import { useLookupOptions } from "@/lib/reference";
-import { FormCard, FormScreen, SavedNotice } from "@/components/field-form";
+import { FormCard, FormScreen, FormStep, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { ChoiceRow, ErrorText, Field, Loading, Select } from "@/components/ui";
 
@@ -132,7 +132,20 @@ function LoanForm({
   if (done) return <SavedNotice queued={done === "queued"} what="loan" />;
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Save the loan" saving={saving} onSave={handleSave}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle="Save the loan"
+      saving={saving}
+      onSave={handleSave}
+      steps={{
+        titles: ["Lender", "The request"],
+        fields: [["provider_type", "provider_id", "product_type"], ["amount_requested", "term_months", "application_date"]],
+        check: live.checkStep,
+        errors,
+      }}
+    >
+      <FormStep index={0}>
       <FormCard
         title={borrowerName ? `Loan for ${borrowerName}` : "Loan"}
         hint="Recorded as applied. Approval and payout are done on the web."
@@ -182,6 +195,10 @@ function LoanForm({
           }}
           error={errors.product_type}
         />
+      </FormCard>
+      </FormStep>
+      <FormStep index={1}>
+      <FormCard title="The request">
         <Field
           label="Amount requested"
           required
@@ -213,6 +230,7 @@ function LoanForm({
         <Field label="Purpose" value={purpose} onChangeText={setPurpose} multiline maxLength={1000} />
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
       </FormCard>
+      </FormStep>
     </FormScreen>
   );
 }

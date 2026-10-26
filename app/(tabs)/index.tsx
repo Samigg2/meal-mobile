@@ -122,7 +122,9 @@ export default function Home() {
           return (await newestOf(listParticipantsPage, participantsCopy, NEWEST)).map((p) => participantRow(p, person(p.id)));
         case "enterprises":
           return (await newestOf(listEnterprisesPage, enterprisesCopy, NEWEST)).map((e) =>
-            enterpriseRow(e, person(e.owner_participant_id)),
+            enterpriseRow(e, () =>
+              router.push({ pathname: "/enterprises/[id]", params: { id: e.id, ownerName: e.owner_name ?? "" } }),
+            ),
           );
         case "jobs":
           return (await newestOf(listPlacementsPage, placementsCopy, NEWEST)).map((j) => jobRow(j, person(j.participant_id)));

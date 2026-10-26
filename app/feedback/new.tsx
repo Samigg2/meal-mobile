@@ -12,7 +12,7 @@ import {
   useQueuedPayload,
   type Errors,
 } from "@/lib/field-form";
-import { FormCard, FormScreen, PlaceFields, SavedNotice } from "@/components/field-form";
+import { FormCard, FormScreen, FormStep, PlaceFields, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { ChoiceRow, Field, Loading, Select, Toggle } from "@/components/ui";
 
@@ -113,7 +113,20 @@ function FeedbackForm({ initial, queuedId }: { initial: FeedbackInput | null; qu
   if (done) return <SavedNotice queued={done === "queued"} what="feedback" />;
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Send the feedback" saving={saving} onSave={handleSave}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle="Send the feedback"
+      saving={saving}
+      onSave={handleSave}
+      steps={{
+        titles: ["Intake", "Who and where", "What was said"],
+        fields: [["received_date"], ["reporter_age", "reporter_contact", "region", "zone", "woreda"], ["feedback_type", "description"]],
+        check: live.checkStep,
+        errors,
+      }}
+    >
+      <FormStep index={0}>
       <FormCard title="Intake">
         <DateField
           label="Date received"
@@ -130,6 +143,8 @@ function FeedbackForm({ initial, queuedId }: { initial: FeedbackInput | null; qu
           <Select label="Channel (entry point)" value={source} options={sources} onChange={setSource} />
         ) : null}
       </FormCard>
+      </FormStep>
+      <FormStep index={1}>
       <FormCard title="Who raised it" hint="All optional: a person may stay anonymous.">
         <Field label="Reporter name" value={name} onChangeText={setName} autoCapitalize="words" />
         {sexes.length > 0 ? (
@@ -157,6 +172,8 @@ function FeedbackForm({ initial, queuedId }: { initial: FeedbackInput | null; qu
         <PlaceFields value={place} onChange={setPlace} errors={errors} />
         <Field label="Kebele" value={kebele} onChangeText={setKebele} autoCapitalize="words" />
       </FormCard>
+      </FormStep>
+      <FormStep index={2}>
       <FormCard title="What was said">
         <ChoiceRow
           label="Complaint or feedback type"
@@ -204,6 +221,7 @@ function FeedbackForm({ initial, queuedId }: { initial: FeedbackInput | null; qu
           <Field label="Referred to" value={referredTo} onChangeText={setReferredTo} maxLength={100} />
         )}
       </FormCard>
+      </FormStep>
     </FormScreen>
   );
 }

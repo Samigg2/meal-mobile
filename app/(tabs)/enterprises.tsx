@@ -1,13 +1,11 @@
 import { useRouter } from "expo-router";
 import { enterprisesCopy, listEnterprisesPage } from "@/lib/data";
-import { useAuth } from "@/lib/auth";
 import { RecordList } from "@/components/record-list";
 import { enterpriseRow } from "@/components/register-rows";
 
-/** The Enterprises tab; a row opens its owner (an enterprise has no page of its own on the phone yet). */
+/** The Enterprises tab; a row opens the enterprise. */
 export default function Enterprises() {
   const router = useRouter();
-  const { can } = useAuth();
   return (
     <RecordList
       queryKey="enterprises"
@@ -33,10 +31,11 @@ export default function Enterprises() {
         },
         { label: "Inactive", value: "inactive", query: { status: "inactive" }, test: (e) => e.status === "inactive" },
       ]}
-      toRow={(e) => {
-        const owner = e.owner_participant_id;
-        return enterpriseRow(e, owner && can("participants") ? () => router.push(`/participants/${owner}`) : undefined);
-      }}
+      toRow={(e) =>
+        enterpriseRow(e, () =>
+          router.push({ pathname: "/enterprises/[id]", params: { id: e.id, ownerName: e.owner_name ?? "" } }),
+        )
+      }
     />
   );
 }

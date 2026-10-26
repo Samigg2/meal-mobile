@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
-import { Building2, CloudDownload, CloudUpload, Mail, Phone, ShieldCheck, TriangleAlert } from "lucide-react-native";
+import { Building2, CloudDownload, CloudUpload, Mail, ShieldCheck, TriangleAlert } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 import { useQueue } from "@/lib/net";
 import { cachedAt } from "@/lib/offline-cache";
@@ -58,7 +58,6 @@ export default function Profile() {
       <Text style={styles.groupTitle}>Account</Text>
       <Card style={styles.group}>
         <ListRow icon={Mail} title="Email" subtitle={email || "—"} chevron={false} />
-        <ListRow icon={Phone} title="Phone" subtitle={profile?.phone ?? "Not given"} chevron={false} />
         <ListRow icon={Building2} title="Data you see" subtitle={reach} chevron={false} />
         <ListRow
           icon={ShieldCheck}
@@ -102,7 +101,7 @@ export default function Profile() {
           last
         />
       </Card>
-      <Text style={styles.note}>To change your name, phone or password, ask your administrator.</Text>
+      <Text style={styles.note}>To change your name or password, ask your administrator.</Text>
     </ScrollView>
   );
 }

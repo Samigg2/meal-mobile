@@ -6,6 +6,7 @@ import type { PermissionModule } from "./permissions";
 import type { PillTone } from "@/theme";
 import type {
   EmploymentPlacementRow,
+  EnterprisePerformanceRow,
   EnterpriseRow,
   FeedbackRow,
   LoanApplicationRow,
@@ -123,6 +124,26 @@ export const enterprisesCopy = listCopy<EnterpriseRow>("enterprises", listEnterp
   review_status: e.review_status,
   created_at: e.created_at,
 }) as EnterpriseRow);
+
+/** One enterprise; kept encrypted once opened, so it opens again with no connection. */
+export const getEnterprise = (id: string) =>
+  cachedFetch(`enterprise:${id}`, () => api.get<EnterpriseRow>(`/enterprises/${id}`), { secret: true });
+
+export type PerformanceVisit = EnterprisePerformanceRow & {
+  verified_by_name: string | null;
+  created_by_name: string | null;
+};
+
+/** An enterprise's visits (performance records), newest first, as the web's Performance panel shows them. */
+export const getEnterprisePerformance = (id: string) =>
+  cachedFetch(
+    `enterprise-performance:${id}`,
+    async () => {
+      const r = await api.get<{ records: PerformanceVisit[] }>(`/enterprises/${id}/performance`);
+      return [...r.records].sort((a, b) => (a.period_end < b.period_end ? 1 : -1));
+    },
+    { secret: true },
+  );
 
 export type PlacementListRow = EmploymentPlacementRow & {
   participant_name: string;

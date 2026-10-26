@@ -7,7 +7,7 @@ import { ApiError } from "@/lib/api";
 import { todayISO } from "@/lib/participant-form";
 import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
 import { useLookupOptions } from "@/lib/reference";
-import { FormCard, FormScreen, PlaceFields, SavedNotice } from "@/components/field-form";
+import { FormCard, FormScreen, FormStep, PlaceFields, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { Button, ChoiceRow, Field, Loading, Select } from "@/components/ui";
 
@@ -136,12 +136,28 @@ function JobForm({
   if (done) return <SavedNotice queued={done === "queued"} what="job" />;
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Save the job" saving={saving} onSave={() => void handleSave()}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle="Save the job"
+      saving={saving}
+      onSave={() => void handleSave()}
+      steps={{
+        titles: ["The job", "Where"],
+        fields: [
+          ["employer_name", "job_title", "sector", "start_date", "end_date", "monthly_income"],
+          ["region", "zone", "woreda"],
+        ],
+        check: live.checkStep,
+        errors,
+      }}
+    >
       {duplicate ? (
         <FormCard title="Already recorded?" hint={`${duplicate} If this is a second, different job, save it anyway.`}>
           <Button title="It is a different job: save anyway" variant="outline" onPress={() => void handleSave(true)} />
         </FormCard>
       ) : null}
+      <FormStep index={0}>
       <FormCard title={personName ? `Job for ${personName}` : "Job"} hint="It counts once someone else verifies it on the web.">
         <ChoiceRow label="Placement type" required value={type} options={[...PLACEMENT_TYPES]} onChange={setType} />
         <Field
@@ -203,10 +219,13 @@ function JobForm({
         />
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
       </FormCard>
+      </FormStep>
+      <FormStep index={1}>
       <FormCard title="Where the job is">
         <PlaceFields value={place} onChange={setPlace} errors={errors} />
         <Field label="Kebele" value={kebele} onChangeText={setKebele} autoCapitalize="words" />
       </FormCard>
+      </FormStep>
     </FormScreen>
   );
 }

@@ -204,7 +204,9 @@ function buildUrl(path: string, query?: Query): string {
 
 async function send<T>(path: string, options: Options, allowRefresh: boolean): Promise<T> {
   const headers: Record<string, string> = {};
-  if (options.body !== undefined) headers["Content-Type"] = "application/json";
+  // A file upload (FormData) sets its own multipart boundary.
+  const multipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body !== undefined && !multipart) headers["Content-Type"] = "application/json";
   if (!options.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   // A request on a weak signal can hang indefinitely. After the timeout it is
@@ -217,7 +219,7 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
     response = await fetch(buildUrl(path, options.query), {
       method: options.method ?? "GET",
       headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body: options.body === undefined ? undefined : multipart ? (options.body as FormData) : JSON.stringify(options.body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -265,6 +267,8 @@ export const api = {
   post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body }, true),
   patch: <T>(path: string, body?: unknown) => send<T>(path, { method: "PATCH", body }, true),
   delete: <T>(path: string) => send<T>(path, { method: "DELETE" }, true),
+  /** A multipart POST (a document photo). */
+  upload: <T>(path: string, form: FormData) => send<T>(path, { method: "POST", body: form }, true),
   /** No session: the public self-registration endpoints. Never refreshes or signs out. */
   anon: {
     get: <T>(path: string, query?: Query) => send<T>(path, { method: "GET", query, anonymous: true }, false),

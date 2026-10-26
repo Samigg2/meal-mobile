@@ -7,7 +7,7 @@ import { ApiError } from "@/lib/api";
 import { PHONE_RE, todayISO } from "@/lib/participant-form";
 import { useLookupOptions } from "@/lib/reference";
 import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
-import { FormCard, FormScreen, GpsField, PlaceFields, SavedNotice, type GpsPoint } from "@/components/field-form";
+import { FormCard, FormScreen, FormStep, GpsField, PlaceFields, SavedNotice, type GpsPoint } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { Button, Field, Loading, Select } from "@/components/ui";
 
@@ -164,12 +164,28 @@ function EnterpriseForm({
   if (done) return <SavedNotice queued={done === "queued"} what="enterprise" />;
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Save the enterprise" saving={saving} onSave={() => void handleSave()}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle="Save the enterprise"
+      saving={saving}
+      onSave={() => void handleSave()}
+      steps={{
+        titles: ["The business", "Workers & place"],
+        fields: [
+          ["enterprise_name", "enterprise_type", "established_date", "registration_status", "tin_number", "phone", "email"],
+          ["employees_male", "employees_female", "region", "zone", "woreda"],
+        ],
+        check: live.checkStep,
+        errors,
+      }}
+    >
       {duplicate ? (
         <FormCard title="Already recorded?" hint={`${duplicate} If this is a second, different business, save it anyway.`}>
           <Button title="It is a different business: save anyway" variant="outline" onPress={() => void handleSave(true)} />
         </FormCard>
       ) : null}
+      <FormStep index={0}>
       <FormCard title="The business" hint={ownerName ? `Owner: ${ownerName}` : undefined}>
         <Field label="Enterprise name" required value={name} onChangeText={setName} onBlur={() => live.touch("enterprise_name")} error={errors.enterprise_name} />
         <Select
@@ -214,6 +230,8 @@ function EnterpriseForm({
         <Field label="Phone" required value={phone} onChangeText={setPhone} onBlur={() => live.touch("phone")} keyboardType="phone-pad" error={errors.phone} />
         <Field label="Email" value={email} onChangeText={setEmail} onBlur={() => live.touch("email")} keyboardType="email-address" error={errors.email} />
       </FormCard>
+      </FormStep>
+      <FormStep index={1}>
       <FormCard title="Workers" hint="Everyone working in it now, the owner included.">
         <Field label="Male employees" required value={men} onChangeText={setMen} onBlur={() => live.touch("employees_male")} keyboardType="number-pad" error={errors.employees_male} />
         <Field label="Female employees" required value={women} onChangeText={setWomen} onBlur={() => live.touch("employees_female")} keyboardType="number-pad" error={errors.employees_female} />
@@ -223,6 +241,7 @@ function EnterpriseForm({
         <Field label="Kebele" value={kebele} onChangeText={setKebele} autoCapitalize="words" />
         <GpsField value={gps} onChange={setGps} what="business" />
       </FormCard>
+      </FormStep>
     </FormScreen>
   );
 }

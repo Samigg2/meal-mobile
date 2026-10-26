@@ -1,11 +1,12 @@
 import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { BriefcaseBusiness, CircleAlert, HandCoins, Pencil, Plus, ShieldCheck, Store } from "lucide-react-native";
+import { BriefcaseBusiness, CircleAlert, FileText, HandCoins, Pencil, Plus, ShieldCheck, Store } from "lucide-react-native";
 import { getParticipantDetail, REPAYABLE } from "@/lib/data";
 import { initialsOf } from "@/lib/user";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
+import { DocumentPhotos } from "@/components/document-photos";
 import { colors, spacing, topics } from "@/theme";
 
 const capital = (s?: string | null) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : null);
@@ -103,11 +104,21 @@ export default function ParticipantDetail() {
         <Row label="Location" value={location} last />
       </Card>
 
+      {/* Registered with a Kebele ID and no National ID: the scan is the evidence (2026-10-25). */}
+      {!participant.national_id?.trim() && participant.kebele_id?.trim() && can("participants", "write") && !data.fromCopy ? (
+        <DocumentPhotos module="participants" recordId={participant.id} types={["kebele_id_scan"]} />
+      ) : null}
+
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Enterprise</Text>
         {enterprise ? (
           <>
-            <Text style={styles.value}>{enterprise.enterprise_name}</Text>
+            <Text
+              style={[styles.value, styles.link]}
+              onPress={() => router.push({ pathname: "/enterprises/[id]", params: { id: enterprise.id } })}
+            >
+              {enterprise.enterprise_name} ›
+            </Text>
             <Text style={styles.meta}>
               {[enterprise.enterprise_type, enterprise.status]
                 .filter(Boolean)
@@ -162,6 +173,19 @@ export default function ParticipantDetail() {
                     .join(" · ")}
                   {job.verified_on ? "" : " · not verified yet"}
                 </Text>
+                {can("employment", "write") && !data.fromCopy ? (
+                  <Button
+                    title="Documents"
+                    icon={FileText}
+                    variant="outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/documents",
+                        params: { module: "employment", id: job.id, types: "placement_evidence", title },
+                      })
+                    }
+                  />
+                ) : null}
                 {can("employment", "write") && job.verified_on && job.status !== "exited" ? (
                   <Button
                     title="Follow-up"
@@ -202,6 +226,19 @@ export default function ParticipantDetail() {
                     .filter(Boolean)
                     .join(" · ")}
                 </Text>
+                {can("finance", "write") && !data.fromCopy ? (
+                  <Button
+                    title="Documents"
+                    icon={FileText}
+                    variant="outline"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/documents",
+                        params: { module: "finance", id: loan.id, types: "loan_agreement", title: label },
+                      })
+                    }
+                  />
+                ) : null}
                 {can("finance", "write") && REPAYABLE.has(loan.status) ? (
                   <Button
                     title="Record a repayment"
@@ -273,6 +310,7 @@ const styles = StyleSheet.create({
   card: { gap: spacing.sm },
   meta: { fontSize: 13, color: colors.muted },
   value: { fontSize: 15, color: colors.text, fontWeight: "600" },
+  link: { color: colors.primary },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
   detailRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md, paddingVertical: 10, minHeight: 44 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
