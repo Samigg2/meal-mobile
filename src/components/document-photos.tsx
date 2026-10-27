@@ -2,7 +2,7 @@ import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Camera, CircleAlert, CircleCheck, ImageUp } from "lucide-react-native";
+import { Camera, CircleAlert, CircleCheck, ImageUp, RotateCw } from "lucide-react-native";
 import { api, ApiError } from "@/lib/api";
 import { Button, Card, ErrorText, Text } from "@/components/ui";
 import { colors, spacing } from "@/theme";
@@ -20,12 +20,14 @@ export const DOCUMENT_TYPES = {
 } as const;
 export type DocumentType = keyof typeof DOCUMENT_TYPES;
 
-type AttachmentRow = { id: string; file_name: string; document_type: string | null; created_at: string };
+type PickedPhoto = { type: DocumentType; uri: string; mime: string };
+
+type AttachmentRow ={ id: string; file_name: string; document_type: string | null; created_at: string };
 
 /**
- * A photo goes straight to the server. With no connection it is not kept on
- * the phone (an ID scan is personal data and the photo would sit unencrypted
- * in the phone's files): the document is added from this page once online.
+ * A photo goes straight to the server. It is not saved to the phone's files
+ * (an ID scan is personal data and would sit unencrypted there); a failed
+ * upload can be resent with "Try again" while the page is open.
  */
 export function DocumentPhotos({
   module,
@@ -44,6 +46,7 @@ export function DocumentPhotos({
   });
   const [busy, setBusy] = useState<DocumentType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState<PickedPhoto | null>(null);
   const onFile = new Set((files.data ?? []).map((f) => f.document_type).filter(Boolean));
 
   async function add(type: DocumentType, from: "camera" | "library") {
@@ -56,30 +59,37 @@ export function DocumentPhotos({
       setError(from === "camera" ? "Allow the camera to take the photo." : "Allow access to photos to choose one.");
       return;
     }
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.6 };
+    // A smaller JPEG: a document stays readable and uploads faster on a weak signal.
+    const options: ImagePicker.ImagePickerOptions = { mediaTypes: ["images"], quality: 0.4 };
     const picked =
       from === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     const asset = picked.canceled ? null : picked.assets[0];
     if (!asset) return;
-
-    const form = new FormData();
-    // React Native's FormData takes a file as { uri, name, type }.
-    form.append("file", {
+    await send({
+      type,
       uri: asset.uri,
-      name: asset.fileName ?? `${type}.jpg`,
-      type: asset.mimeType ?? "image/jpeg",
-    } as unknown as Blob);
-    form.append("module", module);
-    form.append("recordId", recordId);
-    form.append("document_type", type);
-    setBusy(type);
+      mime: asset.mimeType ?? "image/jpeg",
+    });
+  }
+
+  async function send(photo: PickedPhoto) {
+    setError(null);
+    setBusy(photo.type);
     try {
-      await api.upload("/attachments/upload", form);
+      await api.uploadFile(
+        "/attachments/upload",
+        { uri: photo.uri, mimeType: photo.mime },
+        { module, recordId, document_type: photo.type },
+      );
+      setFailed(null);
       await queryClient.invalidateQueries({ queryKey: key });
     } catch (err) {
+      // The photo stays in memory only (not saved to the phone's files), so
+      // "Try again" can resend it without taking it again.
+      setFailed(photo);
       setError(
         err instanceof ApiError && err.isNetworkError
-          ? "No connection: the photo was not kept. Add it here once you are online."
+          ? `The photo did not reach the server (${err.message}). Check the connection and press Try again.`
           : err instanceof Error
             ? err.message
             : "The photo did not upload",
@@ -93,6 +103,9 @@ export function DocumentPhotos({
     <Card style={styles.card}>
       <Text style={styles.title}>Documents</Text>
       <ErrorText>{error}</ErrorText>
+      {failed && !busy && (
+        <Button title="Try again" icon={RotateCw} variant="outline" onPress={() => void send(failed)} />
+      )}
       {types.map((t, i) => {
         const done = onFile.has(t);
         return (

@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronUp,
   CircleCheck,
-  ClipboardCheck,
   ClipboardList,
   CloudUpload,
   GraduationCap,
@@ -87,7 +86,6 @@ export default function Home() {
     can("monitoring", "write") && { label: "Work plan", icon: CalendarCheck, topic: "indicators", go: () => router.push("/activities") },
     can("employment") && { label: "Jobs", icon: BriefcaseBusiness, topic: "jobs", go: () => router.push("/employment") },
     can("finance") && { label: "Loans", icon: HandCoins, topic: "loans", go: () => router.push("/finance") },
-    can("surveys") && { label: "My responses", icon: ClipboardCheck, topic: "surveys", go: () => router.push("/surveys/mine") },
     { label: "Offline queue", icon: CloudUpload, topic: "indicators", go: () => router.push("/sync") },
     { label: "Notifications", icon: Bell, topic: "participants", go: () => router.push("/notifications") },
     { label: "Your access", icon: ShieldCheck, topic: "enterprises", go: () => router.push("/access") },
@@ -133,9 +131,13 @@ export default function Home() {
             loanRow(l, person(l.participant_id ?? l.enterprises?.owner_participant_id)),
           );
         case "feedback":
-          return (await newestOf(listFeedbackPage, undefined, NEWEST)).map(feedbackRow);
+          return (await newestOf(listFeedbackPage, undefined, NEWEST)).map((f) =>
+            feedbackRow(f, () => router.push({ pathname: "/feedback/[id]", params: { id: f.id } })),
+          );
         case "concerns":
-          return (await newestOf(listConcernsPage, undefined, NEWEST)).map(concernRow);
+          return (await newestOf(listConcernsPage, undefined, NEWEST)).map((c) =>
+            concernRow(c, () => router.push({ pathname: "/safeguarding/[id]", params: { id: c.id } })),
+          );
         case "attendance":
           return (await newestOf(listTrainingPage, undefined, NEWEST)).map((t) =>
             trainingRow(t, can("training", "write") ? () => router.push(`/training/${t.id}`) : undefined),

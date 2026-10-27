@@ -114,8 +114,9 @@ const words = (s?: string | null) => {
 
 const FEEDBACK_TONE: Record<string, PillTone> = { new: "blue", in_review: "amber", resolved: "green", closed: "grey" };
 
-export function feedbackRow(f: FeedbackRow): Row {
+export function feedbackRow(f: FeedbackRow, open?: () => void): Row {
   return {
+    onPress: open,
     id: f.id,
     initials: words(f.feedback_type).slice(0, 2),
     color: topics.disability.color,
@@ -129,8 +130,12 @@ export function feedbackRow(f: FeedbackRow): Row {
 
 const CASE_TONE: Record<string, PillTone> = { open: "red", investigating: "amber", referred: "violet", closed: "grey" };
 
-export function concernRow(c: Pick<SafeguardingCaseRow, "id" | "case_type" | "status" | "reported_date" | "created_at">): Row {
+export function concernRow(
+  c: Pick<SafeguardingCaseRow, "id" | "case_type" | "status" | "reported_date" | "created_at">,
+  open?: () => void,
+): Row {
   return {
+    onPress: open,
     id: c.id,
     initials: "SG",
     color: topics.safeguarding.color,

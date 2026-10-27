@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import * as FileSystem from "expo-file-system/legacy";
 import { secureStorage } from "./storage";
 
 /**
@@ -262,13 +263,62 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
   return (await response.json()) as T;
 }
 
+/**
+ * A photo straight from the phone's file, sent by Expo's native uploader
+ * (React Native's fetch with a multipart body fails on some phones with
+ * "Network request failed" while every other request works).
+ */
+async function sendFile<T>(
+  path: string,
+  file: { uri: string; mimeType: string },
+  fields: Record<string, string>,
+  allowRefresh: boolean,
+): Promise<T> {
+  let result: FileSystem.FileSystemUploadResult;
+  try {
+    result = await FileSystem.uploadAsync(buildUrl(path), file.uri, {
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "file",
+      mimeType: file.mimeType,
+      parameters: fields,
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+  } catch (error) {
+    throw new ApiError(0, error instanceof Error ? error.message : "Network request failed");
+  }
+
+  if (result.status === 401 && allowRefresh) {
+    const outcome = await refreshSession();
+    if (outcome === "ok") return sendFile<T>(path, file, fields, false);
+    if (outcome === "network") throw new ApiError(0, "Network request failed while renewing the session");
+    await clearSession();
+    throw new ApiError(401, "Your session has expired. Please sign in again.");
+  }
+
+  let payload: unknown;
+  try {
+    payload = result.body ? JSON.parse(result.body) : undefined;
+  } catch {
+    /* non-JSON body */
+  }
+  if (result.status < 200 || result.status >= 300) {
+    const m = (payload as { message?: unknown } | undefined)?.message;
+    const message =
+      typeof m === "string" ? m : Array.isArray(m) ? m.join("; ") : `Request failed with status ${result.status}`;
+    throw new ApiError(result.status, message, payload);
+  }
+  return payload as T;
+}
+
 export const api = {
   get: <T>(path: string, query?: Query) => send<T>(path, { method: "GET", query }, true),
   post: <T>(path: string, body?: unknown) => send<T>(path, { method: "POST", body }, true),
   patch: <T>(path: string, body?: unknown) => send<T>(path, { method: "PATCH", body }, true),
   delete: <T>(path: string) => send<T>(path, { method: "DELETE" }, true),
-  /** A multipart POST (a document photo). */
-  upload: <T>(path: string, form: FormData) => send<T>(path, { method: "POST", body: form }, true),
+  /** A multipart POST of a file on the phone (a document photo), with these form fields. */
+  uploadFile: <T>(path: string, file: { uri: string; mimeType: string }, fields: Record<string, string>) =>
+    sendFile<T>(path, file, fields, true),
   /** No session: the public self-registration endpoints. Never refreshes or signs out. */
   anon: {
     get: <T>(path: string, query?: Query) => send<T>(path, { method: "GET", query, anonymous: true }, false),

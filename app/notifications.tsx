@@ -7,13 +7,6 @@ import { formatDate } from "@/components/date-picker";
 import { Card, EmptyState, ListRow, ListSkeleton, Text } from "@/components/ui";
 import { colors, spacing } from "@/theme";
 
-/** The phone screens a web path can open; anything else is read here and finished on the web. */
-function phoneRoute(href: string) {
-  const person = /^\/participants\/([0-9a-f-]{36})\/?$/i.exec(href);
-  if (person) return { pathname: "/participants/[id]" as const, params: { id: person[1] } };
-  return null;
-}
-
 /**
  * What is waiting for this person (the same list as the web bell): feedback to answer,
  * cases to review, records to approve, by what their access allows. Opening an item
@@ -38,13 +31,22 @@ export default function Notifications() {
     );
   }
 
-  async function open(queue: string, item: NotificationItem) {
-    // Marking it seen is a courtesy: opening the record must not wait for it, or fail without a connection.
-    void markNotificationSeen(queue, item.id)
+  async function open(group: { key: string; label: string }, item: NotificationItem) {
+    // Marking it seen is a courtesy: opening it must not wait for it, or fail without a connection.
+    void markNotificationSeen(group.key, item.id)
       .then(() => queryClient.invalidateQueries({ queryKey: ["notifications"] }))
       .catch(() => undefined);
-    const route = phoneRoute(item.href);
-    if (route) router.push(route);
+    router.push({
+      pathname: "/notification",
+      params: {
+        group: group.label,
+        title: item.title,
+        subtitle: item.subtitle,
+        created_at: item.created_at,
+        href: item.href,
+        seen: item.seen ? "1" : "0",
+      },
+    });
   }
 
   const groups = data.groups.filter((g) => g.items.length > 0);
@@ -74,22 +76,18 @@ export default function Notifications() {
               ) : null}
             </View>
             <Card style={styles.card}>
-              {group.items.slice(0, 20).map((item, i, shown) => {
-                const onPhone = !!phoneRoute(item.href);
-                return (
-                  <ListRow
-                    key={item.id}
-                    icon={BellRing}
-                    color={item.seen ? colors.faint : colors.primary}
-                    tint={item.seen ? colors.background : colors.primarySoft}
-                    title={item.title}
-                    subtitle={`${item.subtitle}${item.subtitle ? " · " : ""}${formatDate(item.created_at.slice(0, 10))}${onPhone ? "" : " · finish on the web"}`}
-                    onPress={() => void open(group.key, item)}
-                    chevron={onPhone}
-                    last={i === shown.length - 1}
-                  />
-                );
-              })}
+              {group.items.slice(0, 20).map((item, i, shown) => (
+                <ListRow
+                  key={item.id}
+                  icon={BellRing}
+                  color={item.seen ? colors.faint : colors.primary}
+                  tint={item.seen ? colors.background : colors.primarySoft}
+                  title={item.title}
+                  subtitle={`${item.subtitle}${item.subtitle ? " · " : ""}${formatDate(item.created_at.slice(0, 10))}`}
+                  onPress={() => void open(group, item)}
+                  last={i === shown.length - 1}
+                />
+              ))}
             </Card>
             {group.items.length > 20 ? (
               <Text style={styles.more}>

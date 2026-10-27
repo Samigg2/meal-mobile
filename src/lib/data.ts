@@ -189,6 +189,11 @@ export const loansCopy = listCopy<LoanListRow>("loans", listLoansPage, (l) => ({
 export const listFeedbackPage = (q: PageQuery) => api.get<Page<FeedbackRow>>("/feedback/page", q);
 export const listConcernsPage = (q: PageQuery) =>
   api.get<Page<Pick<SafeguardingCaseRow, "id" | "case_type" | "status" | "reported_date" | "created_at">>>("/safeguarding/page", q);
+/** One feedback entry; kept encrypted once opened, so it opens again with no connection. */
+export const getFeedback = (id: string) =>
+  cachedFetch(`feedback:${id}`, () => api.get<FeedbackRow>(`/records/feedback/${id}`), { secret: true });
+/** One concern, always read from the server: a safeguarding case is not kept on the phone. */
+export const getConcern = (id: string) => api.get<SafeguardingCaseRow>(`/records/safeguarding/${id}`);
 export const listTrainingPage = (q: PageQuery) => api.get<Page<TrainingEventRow>>("/training/events/page", q);
 
 /* ------------------------------ participants ----------------------------- */
