@@ -1,8 +1,17 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { ApiError } from "./api";
 import { newRef } from "./participant-form";
-import { enqueue, getQueued, removeFromQueue, sendQueued, shouldQueue, updateQueued, type QueuedKind } from "./queue";
+import {
+  enqueue,
+  getQueued,
+  removeFromQueue,
+  sendQueued,
+  shouldQueue,
+  updateQueued,
+  type QueuedKind,
+} from "./queue";
 
 /*
  * What every field form shares: a device-made reference so a form sent twice
@@ -18,14 +27,22 @@ export const makeRef = newRef;
  * The waiting item a form was opened with from the Sync screen (`?queued=<id>`),
  * or none for a new form. `ready` is false only while it is being read.
  */
-export function useQueuedPayload<T>(): { queuedId: string | undefined; payload: T | null; ready: boolean } {
+export function useQueuedPayload<T>(): {
+  queuedId: string | undefined;
+  payload: T | null;
+  ready: boolean;
+} {
   const { queued } = useLocalSearchParams<{ queued?: string }>();
-  const [state, setState] = useState<{ payload: T | null; ready: boolean }>({ payload: null, ready: !queued });
+  const [state, setState] = useState<{ payload: T | null; ready: boolean }>({
+    payload: null,
+    ready: !queued,
+  });
   useEffect(() => {
     if (!queued) return;
     let active = true;
     void getQueued(queued).then((item) => {
-      if (active) setState({ payload: (item?.payload as T) ?? null, ready: true });
+      if (active)
+        setState({ payload: (item?.payload as T) ?? null, ready: true });
     });
     return () => {
       active = false;
@@ -51,8 +68,14 @@ export async function saveOrQueue(opts: {
     return "sent";
   } catch (error) {
     if (!shouldQueue(error)) throw error;
-    if (opts.queuedId) await updateQueued(opts.queuedId, opts.label, opts.payload);
-    else await enqueue({ kind: opts.kind, label: opts.label, payload: opts.payload });
+    if (opts.queuedId)
+      await updateQueued(opts.queuedId, opts.label, opts.payload);
+    else
+      await enqueue({
+        kind: opts.kind,
+        label: opts.label,
+        payload: opts.payload,
+      });
     return "queued";
   }
 }
@@ -60,10 +83,18 @@ export async function saveOrQueue(opts: {
 export type Errors = Record<string, string | undefined>;
 
 /** A refusal as field messages plus one line on top. */
-export function errorsFrom(error: unknown, fallback = "Could not save"): Errors {
+export function errorsFrom(
+  error: unknown,
+  fallback = "Could not save",
+): Errors {
   if (!(error instanceof ApiError)) return { form: fallback };
   const fields = error.fieldErrors;
-  return { ...fields, form: Object.keys(fields).length ? "Check the fields marked in red." : error.problems.join("\n") };
+  return {
+    ...fields,
+    form: Object.keys(fields).length
+      ? "Check the fields marked in red."
+      : error.problems.join("\n"),
+  };
 }
 
 /** "3 things to fix", for the line on top when the form's own checks fail. */
@@ -94,12 +125,14 @@ export function useLiveErrors(check: () => Errors) {
   const count = Object.values(found).filter(Boolean).length;
   const errors: Errors = {};
   for (const [name, message] of Object.entries(found)) {
-    if (message && name !== "form" && (submitted || touched[name])) errors[name] = message;
+    if (message && name !== "form" && (submitted || touched[name]))
+      errors[name] = message;
   }
   for (const [name, message] of Object.entries(server)) {
     if (message && name !== "form" && !errors[name]) errors[name] = message;
   }
-  errors.form = submitted && count ? (found.form ?? fixCount(found)) : server.form;
+  errors.form =
+    submitted && count ? (found.form ?? fixCount(found)) : server.form;
   return {
     errors,
     /** A field was left or given a value. */
@@ -115,9 +148,101 @@ export function useLiveErrors(check: () => Errors) {
     },
     /** Next pressed on a stepped form: show this step's messages; true when its fields are fine. */
     checkStep: (names: string[]) => {
-      setTouched((prev) => ({ ...prev, ...Object.fromEntries(names.map((n) => [n, true as const])) }));
+      setTouched((prev) => ({
+        ...prev,
+        ...Object.fromEntries(names.map((n) => [n, true as const])),
+      }));
       return names.every((n) => !found[n]);
     },
     setServer,
   };
+}
+
+/**
+ * A waiting change to a record: its id, the record as it was (`_before`, never
+ * sent) and what the form held when saved (`_after`, never sent), so it opens
+ * again from Sync without a connection. The rest is the request body.
+ */
+export type EditPayload<Row, Body = object> = Body & {
+  _target: string;
+  _before: Row;
+  _after: Partial<Row>;
+};
+
+/**
+ * The record an add form was opened to change (`?edit=<id>`, or a waiting change from
+ * Sync): `row` is what to fill the form with, `editing` says it is a change, not an add.
+ * `ready` is false while the record is being read.
+ */
+export function useEditRecord<Row extends object>(
+  load: (id: string) => Promise<Row>,
+  queryKey: string,
+) {
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const queued = useQueuedPayload<EditPayload<Row>>();
+  const id = queued.payload?._target ?? edit;
+  const wait = !!id && !queued.payload;
+  const { data, error, isLoading } = useQuery({
+    queryKey: ["edit", queryKey, id],
+    queryFn: () => load(id!),
+    enabled: wait && queued.ready,
+  });
+  const before = queued.payload?._before ?? data ?? null;
+  return {
+    editing: !!id,
+    id,
+    queuedId: queued.queuedId,
+    ready: queued.ready && !(wait && isLoading),
+    loadError:
+      wait && !isLoading && !data
+        ? error instanceof Error
+          ? error.message
+          : "Could not load the record."
+        : null,
+    before,
+    row: before
+      ? ({ ...before, ...(queued.payload?._after ?? {}) } as Row)
+      : null,
+    waiting: queued.payload,
+  };
+}
+
+/** The keys whose value differs, as the generic records route takes them. */
+export function changedValues<Row extends object>(
+  before: Row,
+  after: Partial<Row>,
+): Record<string, unknown> {
+  const changed: Record<string, unknown> = {};
+  for (const key of Object.keys(after) as (keyof Row)[]) {
+    if (
+      JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null)
+    )
+      changed[key as string] = after[key] ?? null;
+  }
+  return changed;
+}
+
+/** Sends a change to a record, or keeps it on the phone when offline (`body` is the request body). */
+export function saveChange<Row extends object>(opts: {
+  kind: QueuedKind;
+  label: string;
+  id: string;
+  before: Row;
+  /** What the form changed, for opening a waiting change again. */
+  after: Record<string, unknown>;
+  body: object;
+  queuedId?: string;
+}) {
+  const payload: EditPayload<Row> = {
+    ...opts.body,
+    _target: opts.id,
+    _before: opts.before,
+    _after: opts.after as Partial<Row>,
+  };
+  return saveOrQueue({
+    kind: opts.kind,
+    label: opts.label,
+    payload,
+    queuedId: opts.queuedId,
+  });
 }

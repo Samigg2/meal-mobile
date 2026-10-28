@@ -1,14 +1,43 @@
 import { useRef, useState } from "react";
 import { type ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { LOAN_PRODUCTS, listProviders, type LoanInput, type LoanProduct } from "@/lib/data";
+import {
+  LOAN_PRODUCTS,
+  listProviders,
+  type LoanInput,
+  type LoanProduct,
+} from "@/lib/data";
+import { api } from "@/lib/api";
 import { todayISO } from "@/lib/participant-form";
-import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
+import {
+  changedValues,
+  errorsFrom,
+  makeRef,
+  numberOf,
+  saveChange,
+  saveOrQueue,
+  useEditRecord,
+  useLiveErrors,
+  useQueuedPayload,
+  type Errors,
+} from "@/lib/field-form";
 import { useLookupOptions } from "@/lib/reference";
-import { FormCard, FormScreen, FormStep, SavedNotice } from "@/components/field-form";
+import {
+  FormCard,
+  FormScreen,
+  FormStep,
+  SavedNotice,
+} from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
-import { ChoiceRow, ErrorText, Field, Loading, Select } from "@/components/ui";
+import {
+  ChoiceRow,
+  EmptyState,
+  ErrorText,
+  Field,
+  Loading,
+  Select,
+} from "@/components/ui";
 
 /** A loan waits with the borrower's name, for the Sync screen and to open it again. */
 type QueuedLoan = LoanInput & { _borrower?: string };
@@ -21,9 +50,36 @@ type QueuedLoan = LoanInput & { _borrower?: string };
  * and the borrower has no other open loan.
  */
 export default function RecordLoan() {
-  const { participant, participantName } = useLocalSearchParams<{ participant?: string; participantName?: string }>();
+  const { participant, participantName } = useLocalSearchParams<{
+    participant?: string;
+    participantName?: string;
+  }>();
+  const edit = useEditRecord<LoanRecord>(
+    async (id) =>
+      (await api.get<{ loan: LoanRecord }>(`/finance/loans/${id}`)).loan,
+    "loan",
+  );
   const queued = useQueuedPayload<QueuedLoan>();
-  if (!queued.ready) return <Loading />;
+  if (!queued.ready || !edit.ready) return <Loading />;
+  // Opened with `edit`: the same form, filled in from the loan, saving a change.
+  if (edit.editing) {
+    if (!edit.row)
+      return (
+        <EmptyState
+          title="Could not load the loan"
+          message={edit.loadError ?? "Try again."}
+        />
+      );
+    return (
+      <LoanForm
+        initial={rowToInitial(edit.row)}
+        borrower={edit.row.participant_id ?? ""}
+        borrowerName={edit.row.participants?.full_name ?? ""}
+        queuedId={edit.queuedId}
+        change={{ id: edit.id!, before: edit.before! }}
+      />
+    );
+  }
   const initial = queued.payload;
   return (
     <LoanForm
@@ -35,28 +91,73 @@ export default function RecordLoan() {
   );
 }
 
+/** A loan as the loan detail route returns it. */
+type LoanRecord = {
+  provider_id: string;
+  participant_id: string | null;
+  product_type: LoanProduct;
+  amount_requested: number | string;
+  term_months: number | null;
+  purpose: string | null;
+  application_date: string;
+  notes: string | null;
+  participants?: { full_name: string } | null;
+};
+
+/** The loan as the form's own shape, so one form serves add and change. */
+function rowToInitial(r: LoanRecord): QueuedLoan {
+  return {
+    provider_id: r.provider_id,
+    participant_id: r.participant_id ?? "",
+    product_type: r.product_type,
+    amount_requested: Number(r.amount_requested),
+    term_months: r.term_months ?? undefined,
+    purpose: r.purpose ?? undefined,
+    application_date: r.application_date.slice(0, 10),
+    notes: r.notes ?? undefined,
+    client_ref: "",
+  };
+}
+
 function LoanForm({
   initial,
   borrower,
   borrowerName,
   queuedId,
+  change,
 }: {
   initial: QueuedLoan | null;
   borrower: string;
   borrowerName: string;
   queuedId?: string;
+  /** Set when this is a change to an existing loan (the id, and the record as it was). */
+  change?: { id: string; before: LoanRecord };
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const scroll = useRef<ScrollView>(null);
-  const providers = useQuery({ queryKey: ["finance-providers"], queryFn: listProviders });
-  const providerTypes = useLookupOptions("financial_service_providers.provider_type");
+  const providers = useQuery({
+    queryKey: ["finance-providers"],
+    queryFn: listProviders,
+  });
+  const providerTypes = useLookupOptions(
+    "financial_service_providers.provider_type",
+  );
   const [providerType, setProviderType] = useState("");
-  const [product, setProduct] = useState<LoanProduct | undefined>(initial?.product_type);
+  const [product, setProduct] = useState<LoanProduct | undefined>(
+    initial?.product_type,
+  );
   const [provider, setProvider] = useState(initial?.provider_id ?? "");
-  const [amount, setAmount] = useState(initial ? String(initial.amount_requested) : "");
-  const [term, setTerm] = useState(initial?.term_months !== undefined ? String(initial.term_months) : "");
+  const [amount, setAmount] = useState(
+    initial ? String(initial.amount_requested) : "",
+  );
+  const [term, setTerm] = useState(
+    initial?.term_months !== undefined ? String(initial.term_months) : "",
+  );
   const [purpose, setPurpose] = useState(initial?.purpose ?? "");
-  const [applied, setApplied] = useState(initial?.application_date ?? todayISO());
+  const [applied, setApplied] = useState(
+    initial?.application_date ?? todayISO(),
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [clientRef] = useState(() => initial?.client_ref ?? makeRef());
   const [saving, setSaving] = useState(false);
@@ -65,12 +166,15 @@ function LoanForm({
   // Active providers of the chosen type; the loan kinds are what that provider offers (as the web).
   const all = providers.data ?? [];
   // A waiting loan reopens on its provider's type.
-  const typeOf = providerType || all.find((p) => p.id === provider)?.provider_type || "";
+  const typeOf =
+    providerType || all.find((p) => p.id === provider)?.provider_type || "";
   const lenders = all
     .filter((p) => p.status === "active" && p.provider_type === typeOf)
     .map((p) => ({ label: p.name, value: p.id }));
   const offered = all.find((p) => p.id === provider)?.products_offered;
-  const kinds = LOAN_PRODUCTS.filter((k) => !offered || offered.includes(k.value));
+  const kinds = LOAN_PRODUCTS.filter(
+    (k) => !offered || offered.includes(k.value),
+  );
 
   const money = numberOf(amount);
   const months = numberOf(term);
@@ -81,15 +185,25 @@ function LoanForm({
     if (!typeOf) found.provider_type = "Choose the type of provider";
     if (!provider) found.provider_id = "Choose the provider";
     if (!product) found.product_type = "Choose business loan or personal loan";
-    if (amount.trim() === "") found.amount_requested = "Amount requested is required";
-    else if (money === undefined || Number.isNaN(money) || money <= 0) found.amount_requested = "Amount requested must be more than 0";
-    else if (money > 100_000_000) found.amount_requested = "Amount requested must be at most 100,000,000";
-    else if ((amount.split(".")[1] ?? "").length > 2) found.amount_requested = "Amount requested takes at most 2 decimal places";
-    if (months !== undefined && (!Number.isInteger(months) || months < 1 || months > 600)) {
-      found.term_months = "Term must be a whole number of months between 1 and 600";
+    if (amount.trim() === "")
+      found.amount_requested = "Amount requested is required";
+    else if (money === undefined || Number.isNaN(money) || money <= 0)
+      found.amount_requested = "Amount requested must be more than 0";
+    else if (money > 100_000_000)
+      found.amount_requested = "Amount requested must be at most 100,000,000";
+    else if ((amount.split(".")[1] ?? "").length > 2)
+      found.amount_requested =
+        "Amount requested takes at most 2 decimal places";
+    if (
+      months !== undefined &&
+      (!Number.isInteger(months) || months < 1 || months > 600)
+    ) {
+      found.term_months =
+        "Term must be a whole number of months between 1 and 600";
     }
     if (!applied) found.application_date = "Application date is required";
-    else if (applied > todayISO()) found.application_date = "Application date cannot be in the future";
+    else if (applied > todayISO())
+      found.application_date = "Application date cannot be in the future";
     return found;
   });
   const { errors } = live;
@@ -113,13 +227,47 @@ function LoanForm({
     };
     setSaving(true);
     try {
+      if (change) {
+        const {
+          participant_id: _p,
+          client_ref: _r,
+          _borrower: _n,
+          ...now
+        } = payload;
+        const values = changedValues(
+          rowToInitial(change.before),
+          now as Partial<QueuedLoan>,
+        );
+        if (Object.keys(values).length === 0) {
+          router.back();
+          return;
+        }
+        const sent = await saveChange({
+          kind: "loan_edit",
+          label: `Change to the loan of ${borrowerName || "participant"}`,
+          id: change.id,
+          before: change.before,
+          after: values,
+          body: values,
+          queuedId,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ["participant-detail", borrower],
+        });
+        if (sent === "sent") router.back();
+        else setDone("queued");
+        return;
+      }
       const result = await saveOrQueue({
         kind: "loan",
         label: `Loan — ${borrowerName || "participant"}, ${money!.toLocaleString("en")}`,
         payload,
         queuedId,
       });
-      if (result === "sent") await queryClient.invalidateQueries({ queryKey: ["participant-detail", borrower] });
+      if (result === "sent")
+        await queryClient.invalidateQueries({
+          queryKey: ["participant-detail", borrower],
+        });
       setDone(result);
     } catch (err) {
       live.setServer(errorsFrom(err, "Could not save the loan"));
@@ -129,107 +277,133 @@ function LoanForm({
     }
   }
 
-  if (done) return <SavedNotice queued={done === "queued"} what="loan" />;
+  if (done)
+    return (
+      <SavedNotice
+        queued={done === "queued"}
+        what={change ? "change" : "loan"}
+        another={!change}
+      />
+    );
 
   return (
     <FormScreen
       ref={scroll}
       error={errors.form}
-      saveTitle="Save the loan"
+      saveTitle={change ? "Save changes" : "Save the loan"}
       saving={saving}
       onSave={handleSave}
       steps={{
         titles: ["Lender", "The request"],
-        fields: [["provider_type", "provider_id", "product_type"], ["amount_requested", "term_months", "application_date"]],
+        fields: [
+          ["provider_type", "provider_id", "product_type"],
+          ["amount_requested", "term_months", "application_date"],
+        ],
         check: live.checkStep,
         errors,
       }}
     >
       <FormStep index={0}>
-      <FormCard
-        title={borrowerName ? `Loan for ${borrowerName}` : "Loan"}
-        hint="Recorded as applied. Approval and payout are done on the web."
-      >
-        <Select
-          label="Provider type"
-          required
-          value={typeOf || undefined}
-          options={providerTypes}
-          onChange={(v) => {
-            setProviderType(v);
-            setProvider("");
-            setProduct(undefined);
-            live.touch("provider_type");
-          }}
-          placeholder="Select the type"
-          error={errors.provider_type}
-        />
-        <Select
-          label="Financial service provider"
-          required
-          value={provider || undefined}
-          options={lenders}
-          onChange={(v) => {
-            setProvider(v);
-            const next = all.find((p) => p.id === v);
-            if (product && next && !next.products_offered.includes(product)) setProduct(undefined);
-            live.touch("provider_id");
-          }}
-          placeholder={typeOf ? "Select the provider" : "Choose the type first"}
-          disabled={!typeOf}
-          error={errors.provider_id}
-        />
-        {providers.isError && !providers.data ? (
-          <ErrorText>
-            The providers are not on this phone yet: connect once, or use Download for offline on the Sync screen.
-          </ErrorText>
-        ) : null}
-        <ChoiceRow
-          label="Product"
-          required
-          value={product}
-          options={kinds}
-          onChange={(v) => {
-            setProduct(v);
-            live.touch("product_type");
-          }}
-          error={errors.product_type}
-        />
-      </FormCard>
+        <FormCard
+          title={borrowerName ? `Loan for ${borrowerName}` : "Loan"}
+          hint="Recorded as applied. Approval and payout are done on the web."
+        >
+          <Select
+            label="Provider type"
+            required
+            value={typeOf || undefined}
+            options={providerTypes}
+            onChange={(v) => {
+              setProviderType(v);
+              setProvider("");
+              setProduct(undefined);
+              live.touch("provider_type");
+            }}
+            placeholder="Select the type"
+            error={errors.provider_type}
+          />
+          <Select
+            label="Financial service provider"
+            required
+            value={provider || undefined}
+            options={lenders}
+            onChange={(v) => {
+              setProvider(v);
+              const next = all.find((p) => p.id === v);
+              if (product && next && !next.products_offered.includes(product))
+                setProduct(undefined);
+              live.touch("provider_id");
+            }}
+            placeholder={
+              typeOf ? "Select the provider" : "Choose the type first"
+            }
+            disabled={!typeOf}
+            error={errors.provider_id}
+          />
+          {providers.isError && !providers.data ? (
+            <ErrorText>
+              The providers are not on this phone yet: connect once, or use
+              Download for offline on the Sync screen.
+            </ErrorText>
+          ) : null}
+          <ChoiceRow
+            label="Product"
+            required
+            value={product}
+            options={kinds}
+            onChange={(v) => {
+              setProduct(v);
+              live.touch("product_type");
+            }}
+            error={errors.product_type}
+          />
+        </FormCard>
       </FormStep>
       <FormStep index={1}>
-      <FormCard title="The request">
-        <Field
-          label="Amount requested"
-          required
-          value={amount}
-          onChangeText={setAmount}
-          onBlur={() => live.touch("amount_requested")}
-          keyboardType="decimal-pad"
-          error={errors.amount_requested}
-        />
-        <Field
-          label="Term (months)"
-          value={term}
-          onChangeText={setTerm}
-          onBlur={() => live.touch("term_months")}
-          keyboardType="number-pad"
-          error={errors.term_months}
-        />
-        <DateField
-          label="Application date"
-          required
-          value={applied}
-          onChange={(v) => {
-            setApplied(v);
-            live.touch("application_date");
-          }}
-          max={todayISO()}
-          error={errors.application_date}
-        />
-        <Field label="Purpose" value={purpose} onChangeText={setPurpose} multiline maxLength={1000} />
-        <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
-      </FormCard>
+        <FormCard title="The request">
+          <Field
+            label="Amount requested"
+            required
+            value={amount}
+            onChangeText={setAmount}
+            onBlur={() => live.touch("amount_requested")}
+            keyboardType="decimal-pad"
+            error={errors.amount_requested}
+          />
+          <Field
+            label="Term (months)"
+            value={term}
+            onChangeText={setTerm}
+            onBlur={() => live.touch("term_months")}
+            keyboardType="number-pad"
+            error={errors.term_months}
+          />
+          <DateField
+            label="Application date"
+            required
+            value={applied}
+            onChange={(v) => {
+              setApplied(v);
+              live.touch("application_date");
+            }}
+            max={todayISO()}
+            error={errors.application_date}
+          />
+          <Field
+            label="Purpose"
+            value={purpose}
+            onChangeText={setPurpose}
+            multiline
+            maxLength={1000}
+          />
+          <Field
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            maxLength={2000}
+          />
+        </FormCard>
       </FormStep>
     </FormScreen>
   );

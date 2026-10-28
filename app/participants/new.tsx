@@ -14,6 +14,9 @@ import {
   ageOn,
   isRealDate,
   newRef,
+  STEP_FIELDS,
+  STEPS,
+  stepOf,
   todayISO,
   toInput,
   validate,
@@ -85,18 +88,6 @@ export default function NewParticipant() {
     />
   );
 }
-
-/** The register in five steps, as on the web; Next checks only that step's fields. */
-const STEPS = ["Identification", "Personal details", "Location", "Inclusion", "Consent"];
-const STEP_FIELDS: string[][] = [
-  ["full_name", "national_id", "kebele_id"],
-  ["date_of_birth", "sex", "phone", "email", "education_level", "marital_status", "family_size"],
-  ["region", "zone", "woreda", "woreda_other", "kebele"],
-  ["vulnerability_category", "vulnerability_other", "disability", "disability_type", "disability_other"],
-  ["consent_given", "notes"],
-];
-const stepOf = (found: Record<string, unknown>) =>
-  STEP_FIELDS.findIndex((names) => names.some((n) => n in found));
 
 function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormState; initialRef?: string; queuedId?: string }) {
   const router = useRouter();

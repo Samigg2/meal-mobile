@@ -1,11 +1,28 @@
 import { useRef, useState } from "react";
 import { type ScrollView } from "react-native";
-import { SAFEGUARDING_TYPES, type SafeguardingInput, type SafeguardingType } from "@/lib/data";
+import { useRouter } from "expo-router";
+import {
+  SAFEGUARDING_TYPES,
+  getConcern,
+  type SafeguardingInput,
+  type SafeguardingType,
+} from "@/lib/data";
+import type { SafeguardingCaseRow } from "@/lib/types";
 import { todayISO } from "@/lib/participant-form";
-import { errorsFrom, makeRef, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
+import {
+  changedValues,
+  errorsFrom,
+  makeRef,
+  saveChange,
+  saveOrQueue,
+  useEditRecord,
+  useLiveErrors,
+  useQueuedPayload,
+  type Errors,
+} from "@/lib/field-form";
 import { FormCard, FormScreen, SavedNotice } from "@/components/field-form";
 import { DateField, formatDate } from "@/components/date-picker";
-import { Field, Loading, Select } from "@/components/ui";
+import { EmptyState, Field, Loading, Select } from "@/components/ui";
 
 /**
  * Report a safeguarding concern from the field. The phone sends it and keeps
@@ -13,16 +30,67 @@ import { Field, Loading, Select } from "@/components/ui";
  * Who handles it, and how, is decided on the web.
  */
 export default function ReportConcern() {
+  const edit = useEditRecord<SafeguardingCaseRow>(getConcern, "concern");
   const queued = useQueuedPayload<SafeguardingInput>();
-  if (!queued.ready) return <Loading />;
+  if (!queued.ready || !edit.ready) return <Loading />;
+  // Opened with `edit`: the same form, filled in from the concern, saving a change.
+  if (edit.editing) {
+    if (!edit.row)
+      return (
+        <EmptyState
+          title="Could not load the concern"
+          message={edit.loadError ?? "Try again."}
+        />
+      );
+    return (
+      <ConcernForm
+        initial={rowToInitial(edit.row)}
+        queuedId={edit.queuedId}
+        change={{ id: edit.id!, before: edit.before! }}
+      />
+    );
+  }
   return <ConcernForm initial={queued.payload} queuedId={queued.queuedId} />;
 }
 
-function ConcernForm({ initial, queuedId }: { initial: SafeguardingInput | null; queuedId?: string }) {
+/** The concern as the form's own shape. The confidential notes are filled in only if the server returned them. */
+function rowToInitial(r: SafeguardingCaseRow): SafeguardingInput {
+  const x = r as unknown as Record<string, unknown>;
+  return {
+    case_type: x.case_type as SafeguardingType,
+    reported_date: String(x.reported_date ?? "").slice(0, 10),
+    incident_date: x.incident_date
+      ? String(x.incident_date).slice(0, 10)
+      : undefined,
+    description: x.description ? String(x.description) : "",
+    confidential_notes: x.confidential_notes
+      ? String(x.confidential_notes)
+      : undefined,
+    client_ref: "",
+  };
+}
+
+function ConcernForm({
+  initial,
+  queuedId,
+  change,
+}: {
+  initial: SafeguardingInput | null;
+  queuedId?: string;
+  /** Set when this is a change to an existing concern (the id, and the record as it was). */
+  change?: { id: string; before: SafeguardingCaseRow };
+}) {
+  const router = useRouter();
   const scroll = useRef<ScrollView>(null);
-  const [caseType, setCaseType] = useState<SafeguardingType | undefined>(initial?.case_type);
-  const [reportedDate, setReportedDate] = useState(initial?.reported_date ?? todayISO());
-  const [incidentDate, setIncidentDate] = useState(initial?.incident_date ?? "");
+  const [caseType, setCaseType] = useState<SafeguardingType | undefined>(
+    initial?.case_type,
+  );
+  const [reportedDate, setReportedDate] = useState(
+    initial?.reported_date ?? todayISO(),
+  );
+  const [incidentDate, setIncidentDate] = useState(
+    initial?.incident_date ?? "",
+  );
   const [description, setDescription] = useState(initial?.description ?? "");
   const [notes, setNotes] = useState(initial?.confidential_notes ?? "");
   const [clientRef] = useState(() => initial?.client_ref ?? makeRef());
@@ -34,11 +102,13 @@ function ConcernForm({ initial, queuedId }: { initial: SafeguardingInput | null;
     const found: Errors = {};
     if (!caseType) found.case_type = "Case type is required";
     if (!reportedDate) found.reported_date = "Reported on is required";
-    else if (reportedDate > todayISO()) found.reported_date = "Reported on cannot be in the future";
+    else if (reportedDate > todayISO())
+      found.reported_date = "Reported on cannot be in the future";
     else if (incidentDate && reportedDate < incidentDate) {
       found.reported_date = `Reported on cannot be before the incident date (${formatDate(incidentDate)})`;
     }
-    if (incidentDate > todayISO()) found.incident_date = "Incident date cannot be in the future";
+    if (incidentDate > todayISO())
+      found.incident_date = "Incident date cannot be in the future";
     return found;
   });
   const { errors } = live;
@@ -58,8 +128,33 @@ function ConcernForm({ initial, queuedId }: { initial: SafeguardingInput | null;
     };
     setSaving(true);
     try {
+      if (change) {
+        const { client_ref: _r, ...now } = payload;
+        const values = changedValues(
+          rowToInitial(change.before),
+          now as Partial<SafeguardingInput>,
+        );
+        if (Object.keys(values).length === 0) {
+          router.back();
+          return;
+        }
+        const sent = await saveChange({
+          kind: "safeguarding_edit",
+          label: "Change to a concern",
+          id: change.id,
+          before: change.before,
+          after: values,
+          body: { values },
+          queuedId,
+        });
+        if (sent === "sent") router.back();
+        else setDone("queued");
+        return;
+      }
       const label = `Concern — ${SAFEGUARDING_TYPES.find((t) => t.value === caseType)?.label ?? caseType}`;
-      setDone(await saveOrQueue({ kind: "safeguarding", label, payload, queuedId }));
+      setDone(
+        await saveOrQueue({ kind: "safeguarding", label, payload, queuedId }),
+      );
     } catch (err) {
       live.setServer(errorsFrom(err, "Could not send the concern"));
       scroll.current?.scrollTo({ y: 0, animated: true });
@@ -68,10 +163,23 @@ function ConcernForm({ initial, queuedId }: { initial: SafeguardingInput | null;
     }
   }
 
-  if (done) return <SavedNotice queued={done === "queued"} what="concern" />;
+  if (done)
+    return (
+      <SavedNotice
+        queued={done === "queued"}
+        what={change ? "change" : "concern"}
+        another={!change}
+      />
+    );
 
   return (
-    <FormScreen ref={scroll} error={errors.form} saveTitle="Send the concern" saving={saving} onSave={handleSave}>
+    <FormScreen
+      ref={scroll}
+      error={errors.form}
+      saveTitle={change ? "Save changes" : "Send the concern"}
+      saving={saving}
+      onSave={handleSave}
+    >
       <FormCard
         title="What happened"
         hint="Write only what you were told or saw. The safeguarding focal point follows it up; it is not kept on this phone once sent."

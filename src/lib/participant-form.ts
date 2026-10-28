@@ -204,3 +204,16 @@ export function toInput(form: FormState, clientRef?: string): Omit<ParticipantIn
     notes: text(form.notes),
   };
 }
+
+/** The register in five steps, as on the web: shared by the add and edit screens. Next checks only that step's fields. */
+export const STEPS = ["Identification", "Personal details", "Location", "Inclusion", "Consent"];
+export const STEP_FIELDS: string[][] = [
+  ["full_name", "national_id", "kebele_id"],
+  ["date_of_birth", "sex", "phone", "email", "education_level", "marital_status", "family_size"],
+  ["region", "zone", "woreda", "woreda_other", "kebele"],
+  ["vulnerability_category", "vulnerability_other", "disability", "disability_type", "disability_other"],
+  ["consent_given", "notes"],
+];
+/** The first step holding one of the fields in `found`, or -1. */
+export const stepOf = (found: Record<string, unknown>) =>
+  STEP_FIELDS.findIndex((names) => names.some((n) => n in found));

@@ -822,3 +822,6 @@ export async function listMyResponses(templateId: string, userId: string): Promi
 /** The collector's correction, while it waits or after a rejection (the server refuses a verified one). */
 export const updateSurveyResponse = (id: string, input: SurveyResponseInput) =>
   api.patch<SurveyResponseRow>(`/surveys/responses/${id}`, input);
+
+/** One record by its generic route (the flat row), to fill a form that changes it. */
+export const getRecord = <T extends object>(spec: string, id: string) => api.get<T>(`/records/${spec}/${id}`);

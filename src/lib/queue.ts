@@ -25,7 +25,15 @@ export type QueuedKind =
   | "loan_repayment"
   | "placement"
   | "follow_up"
-  | "activity_progress";
+  | "activity_progress"
+  | "enterprise_edit"
+  | "placement_edit"
+  | "loan_edit"
+  | "training_event_edit"
+  | "performance_edit"
+  | "follow_up_edit"
+  | "feedback_edit"
+  | "safeguarding_edit";
 
 export interface QueuedItem {
   id: string;
@@ -79,6 +87,14 @@ const ROUTES: Record<QueuedKind, Route> = {
     what: "Job follow-up",
     form: "/employment/follow-up",
   },
+  enterprise_edit: { method: "patch", path: (id) => `/records/enterprises/${id}`, what: "Enterprise change", form: "/enterprises/new" },
+  placement_edit: { method: "patch", path: (id) => `/records/employment/${id}`, what: "Job change", form: "/employment/new" },
+  loan_edit: { method: "patch", path: (id) => `/finance/loans/${id}`, what: "Loan change", form: "/finance/loan" },
+  training_event_edit: { method: "patch", path: (id) => `/training/events/${id}`, what: "Training event change", form: "/training/event" },
+  performance_edit: { method: "patch", path: (id) => `/enterprises/performance/${id}`, what: "Enterprise visit change", form: "/enterprises/performance" },
+  follow_up_edit: { method: "patch", path: (id) => `/employment/follow-ups/${id}`, what: "Job follow-up change", form: "/employment/follow-up" },
+  feedback_edit: { method: "patch", path: (id) => `/records/feedback/${id}`, what: "Feedback change", form: "/feedback/new" },
+  safeguarding_edit: { method: "patch", path: (id) => `/records/safeguarding/${id}`, what: "Safeguarding change", form: "/safeguarding/new" },
   activity_progress: {
     method: "patch",
     path: (id) => `/monitoring/activities/${id}/progress`,
@@ -98,6 +114,10 @@ export function formFor(item: QueuedItem): { pathname: string; params: Record<st
     : item.kind === "training_attendance"
       ? payload.training_event_id
       : payload._target;
+  // A change to a record opens the add form with `edit` (the record's id), filled in.
+  if (item.kind.endsWith("_edit") && item.kind !== "participant_edit" && item.kind !== "survey_edit") {
+    return { pathname: route.form, params: { queued: item.id, ...(id ? { edit: id } : {}) } };
+  }
   return { pathname: route.form, params: { queued: item.id, ...(id ? { id } : {}) } };
 }
 

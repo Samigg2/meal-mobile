@@ -1,11 +1,24 @@
 import { RefreshControl, ScrollView, StyleSheet } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ShieldAlert } from "lucide-react-native";
+import { useAuth } from "@/lib/auth";
+import { ShieldAlert, Pencil } from "lucide-react-native";
 import { getConcern } from "@/lib/data";
-import { DetailCard, DetailHeader, DetailText, detailStyles } from "@/components/detail-card";
+import {
+  DetailCard,
+  DetailHeader,
+  DetailText,
+  detailStyles,
+} from "@/components/detail-card";
 import { shortDate } from "@/components/register-rows";
-import { Card, EmptyState, ListSkeleton, StatusPill, Text } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  ListSkeleton,
+  StatusPill,
+  Text,
+} from "@/components/ui";
 import { colors, spacing, topics, type PillTone } from "@/theme";
 
 const words = (s?: string | null) => {
@@ -13,7 +26,12 @@ const words = (s?: string | null) => {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
 };
 
-const TONE: Record<string, PillTone> = { open: "red", investigating: "amber", referred: "violet", closed: "grey" };
+const TONE: Record<string, PillTone> = {
+  open: "red",
+  investigating: "amber",
+  referred: "violet",
+  closed: "grey",
+};
 
 /**
  * One safeguarding concern, read only. It is read from the server each time
@@ -21,7 +39,13 @@ const TONE: Record<string, PillTone> = { open: "red", investigating: "amber", re
  */
 export default function ConcernDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const concern = useQuery({ queryKey: ["concern", id], queryFn: () => getConcern(id), enabled: !!id });
+  const router = useRouter();
+  const { can } = useAuth();
+  const concern = useQuery({
+    queryKey: ["concern", id],
+    queryFn: () => getConcern(id),
+    enabled: !!id,
+  });
 
   if (concern.isLoading) return <ListSkeleton rows={3} />;
   const c = concern.data;
@@ -29,7 +53,11 @@ export default function ConcernDetail() {
     return (
       <EmptyState
         title="Could not load this concern"
-        message={concern.error instanceof Error ? concern.error.message : "Check your connection and try again."}
+        message={
+          concern.error instanceof Error
+            ? concern.error.message
+            : "Check your connection and try again."
+        }
       />
     );
   }
@@ -37,7 +65,13 @@ export default function ConcernDetail() {
   return (
     <ScrollView
       contentContainerStyle={detailStyles.container}
-      refreshControl={<RefreshControl refreshing={concern.isRefetching} onRefresh={() => void concern.refetch()} tintColor={colors.primary} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={concern.isRefetching}
+          onRefresh={() => void concern.refetch()}
+          tintColor={colors.primary}
+        />
+      }
     >
       <DetailHeader
         icon={ShieldAlert}
@@ -45,17 +79,26 @@ export default function ConcernDetail() {
         tint={topics.safeguarding.tint}
         title={words(c.case_type) ?? "Concern"}
       >
-        <StatusPill label={words(c.status) ?? c.status} tone={TONE[c.status] ?? "grey"} />
+        <StatusPill
+          label={words(c.status) ?? c.status}
+          tone={TONE[c.status] ?? "grey"}
+        />
       </DetailHeader>
 
       <Card style={styles.notice}>
-        <Text style={styles.noticeText}>Confidential. Do not share this concern, and do not name the person it is about anywhere else.</Text>
+        <Text style={styles.noticeText}>
+          Confidential. Do not share this concern, and do not name the person it
+          is about anywhere else.
+        </Text>
       </Card>
 
       <DetailCard
         title="Details"
         rows={[
-          { label: "Reported", value: shortDate(c.reported_date ?? c.created_at) ?? null },
+          {
+            label: "Reported",
+            value: shortDate(c.reported_date ?? c.created_at) ?? null,
+          },
           { label: "Incident date", value: shortDate(c.incident_date) ?? null },
         ]}
       >
@@ -64,8 +107,21 @@ export default function ConcernDetail() {
 
       {c.confidential_notes ? (
         <DetailCard title="Confidential notes">
-          <DetailText label="Safeguarding staff only" text={c.confidential_notes} />
+          <DetailText
+            label="Safeguarding staff only"
+            text={c.confidential_notes}
+          />
         </DetailCard>
+      ) : null}
+      {can("safeguarding", "write") && c.status !== "closed" ? (
+        <Button
+          title="Edit"
+          icon={Pencil}
+          variant="outline"
+          onPress={() =>
+            router.push({ pathname: "/safeguarding/new", params: { edit: id } })
+          }
+        />
       ) : null}
     </ScrollView>
   );

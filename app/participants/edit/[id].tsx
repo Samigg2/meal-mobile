@@ -14,6 +14,9 @@ import {
   OTHER,
   ageOn,
   isRealDate,
+  STEP_FIELDS,
+  STEPS,
+  stepOf,
   todayISO,
   toInput,
   validate,
@@ -32,6 +35,7 @@ import {
   ListSkeleton,
   Section,
   Select,
+  StepBar,
   StickyFooter,
   Text,
   Toggle,
@@ -143,6 +147,7 @@ function EditForm({
     toForm({ ...participant, ...(pending as Partial<ParticipantRow>) }, locations.woredasOf),
   );
   const [errors, setErrors] = useState<FormErrors>({});
+  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [queuedNotice, setQueuedNotice] = useState(false);
 
@@ -181,6 +186,22 @@ function EditForm({
     setErrors((prev) => (prev[key] || prev.form ? { ...prev, [key]: undefined, form: undefined } : prev));
   }
 
+  function goToStep(next: number) {
+    setStep(next);
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  }
+
+  function goNext() {
+    const found = validate(form, woredas.length > 0, settings) as Record<string, string>;
+    const here = Object.fromEntries(Object.entries(found).filter(([k]) => STEP_FIELDS[step].includes(k)));
+    if (Object.keys(here).length > 0) {
+      showErrors(here as FormErrors);
+      return;
+    }
+    setErrors({});
+    goToStep(step + 1);
+  }
+
   function showErrors(found: FormErrors) {
     setErrors(found);
     scroll.current?.scrollTo({ y: 0, animated: true });
@@ -194,6 +215,8 @@ function EditForm({
         ...found,
         form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.`,
       });
+      const bad = stepOf(found);
+      if (bad >= 0) setStep(bad);
       return;
     }
 
@@ -235,6 +258,7 @@ function EditForm({
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <StepBar steps={STEPS} step={step} onStep={goToStep} />
         <ErrorText>{errors.form}</ErrorText>
         {!locations.loaded ? (
           <Text style={styles.warn}>
@@ -243,6 +267,7 @@ function EditForm({
           </Text>
         ) : null}
 
+        {step === 0 ? (
         <Section title="Identification" icon={IdCard} description="A National ID or a Kebele ID is required.">
           <Field
             label="Full name"
@@ -274,7 +299,9 @@ function EditForm({
             error={errors.kebele_id}
           />
         </Section>
+        ) : null}
 
+        {step === 1 ? (
         <Section title="Personal details" icon={User}>
           <DateField
             label="Date of birth"
@@ -348,7 +375,9 @@ function EditForm({
             error={errors.family_size}
           />
         </Section>
+        ) : null}
 
+        {step === 2 ? (
         <Section title="Location" icon={MapPin}>
           <Select
             label="Region"
@@ -409,7 +438,9 @@ function EditForm({
           ) : null}
           <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
         </Section>
+        ) : null}
 
+        {step === 3 ? (
         <Section title="Inclusion" icon={Heart}>
           <Select
             label="Vulnerability category"
@@ -457,8 +488,15 @@ function EditForm({
             </>
           ) : null}
         </Section>
+        ) : null}
 
+        {step === 4 ? (
         <Section title="Consent and notes" icon={ShieldCheck}>
+          <Text style={styles.consentNote}>
+            {"Personal data is collected under Ethiopia's Personal Data Protection Proclamation No. 1321/2024. " +
+              "Before ticking, explain the purpose of the programme, how the data will be used and kept, and that " +
+              "the participant can withdraw consent at any time without losing services."}
+          </Text>
           <Toggle
             label="Consent given *"
             value={form.consent_given}
@@ -473,9 +511,23 @@ function EditForm({
             multiline
           />
         </Section>
+        ) : null}
       </ScrollView>
       <StickyFooter>
-        <Button title="Save changes" onPress={handleSave} loading={saving} />
+        <View style={styles.footerRow}>
+          {step > 0 ? (
+            <View style={styles.grow}>
+              <Button title="Back" variant="outline" onPress={() => goToStep(step - 1)} />
+            </View>
+          ) : null}
+          <View style={styles.grow}>
+            {step < STEPS.length - 1 ? (
+              <Button title="Next step" onPress={goNext} />
+            ) : (
+              <Button title="Save changes" onPress={handleSave} loading={saving} />
+            )}
+          </View>
+        </View>
       </StickyFooter>
     </KeyboardAvoidingView>
   );
@@ -483,6 +535,9 @@ function EditForm({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  footerRow: { flexDirection: "row", gap: spacing.sm },
+  grow: { flex: 1 },
+  consentNote: { fontSize: 12, color: colors.muted, lineHeight: 18 },
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
   fieldError: { fontSize: 12, color: colors.danger, fontWeight: "500" },
   warn: { fontSize: 12, color: colors.warning, lineHeight: 18 },

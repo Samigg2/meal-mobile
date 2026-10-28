@@ -1,15 +1,44 @@
 import { useRef, useState } from "react";
 import { type ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { PLACEMENT_TYPES, type PlacementInput, type PlacementType } from "@/lib/data";
+import {
+  PLACEMENT_TYPES,
+  getRecord,
+  type PlacementInput,
+  type PlacementType,
+} from "@/lib/data";
 import { ApiError } from "@/lib/api";
 import { todayISO } from "@/lib/participant-form";
-import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
+import {
+  changedValues,
+  errorsFrom,
+  makeRef,
+  numberOf,
+  saveChange,
+  saveOrQueue,
+  useEditRecord,
+  useLiveErrors,
+  useQueuedPayload,
+  type Errors,
+} from "@/lib/field-form";
 import { useLookupOptions } from "@/lib/reference";
-import { FormCard, FormScreen, FormStep, PlaceFields, SavedNotice } from "@/components/field-form";
+import {
+  FormCard,
+  FormScreen,
+  FormStep,
+  PlaceFields,
+  SavedNotice,
+} from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
-import { Button, ChoiceRow, Field, Loading, Select } from "@/components/ui";
+import {
+  Button,
+  ChoiceRow,
+  EmptyState,
+  Field,
+  Loading,
+  Select,
+} from "@/components/ui";
 
 /** A job waits with the person's name, for the Sync screen and to open it again. */
 type QueuedPlacement = PlacementInput & { _person?: string };
@@ -20,9 +49,35 @@ type QueuedPlacement = PlacementInput & { _person?: string };
  * person, employer and start date twice is asked about first.
  */
 export default function RecordJob() {
-  const { participant, participantName } = useLocalSearchParams<{ participant?: string; participantName?: string }>();
+  const { participant, participantName } = useLocalSearchParams<{
+    participant?: string;
+    participantName?: string;
+  }>();
+  const edit = useEditRecord<PlacementRecord>(
+    (id) => getRecord<PlacementRecord>("employment", id),
+    "placement",
+  );
   const queued = useQueuedPayload<QueuedPlacement>();
-  if (!queued.ready) return <Loading />;
+  if (!queued.ready || !edit.ready) return <Loading />;
+  // Opened with `edit`: the same form, filled in from the job, saving a change.
+  if (edit.editing) {
+    if (!edit.row)
+      return (
+        <EmptyState
+          title="Could not load the job"
+          message={edit.loadError ?? "Try again."}
+        />
+      );
+    return (
+      <JobForm
+        initial={rowToInitial(edit.row)}
+        person={edit.row.participant_id}
+        personName={edit.row.participant_name ?? ""}
+        queuedId={edit.queuedId}
+        change={{ id: edit.id!, before: edit.before! }}
+      />
+    );
+  }
   const initial = queued.payload;
   return (
     <JobForm
@@ -34,20 +89,65 @@ export default function RecordJob() {
   );
 }
 
+/** A job as the generic records route returns it. */
+type PlacementRecord = {
+  participant_id: string;
+  participant_name?: string | null;
+  placement_type: PlacementType;
+  employer_name: string | null;
+  job_title: string | null;
+  sector: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  monthly_income: number | string | null;
+  notes: string | null;
+};
+
+/** The job as the form's own shape, so one form serves add and change. */
+function rowToInitial(r: PlacementRecord): QueuedPlacement {
+  return {
+    participant_id: r.participant_id,
+    placement_type: r.placement_type,
+    employer_name: r.employer_name ?? "",
+    job_title: r.job_title ?? undefined,
+    sector: r.sector ?? undefined,
+    region: r.region ?? undefined,
+    zone: r.zone ?? undefined,
+    woreda: r.woreda ?? undefined,
+    kebele: r.kebele ?? undefined,
+    start_date: (r.start_date ?? "").slice(0, 10),
+    end_date: r.end_date ? r.end_date.slice(0, 10) : undefined,
+    monthly_income:
+      r.monthly_income != null ? Number(r.monthly_income) : undefined,
+    notes: r.notes ?? undefined,
+    client_ref: "",
+  };
+}
+
 function JobForm({
   initial,
   person,
   personName,
   queuedId,
+  change,
 }: {
   initial: QueuedPlacement | null;
   person: string;
   personName: string;
   queuedId?: string;
+  /** Set when this is a change to an existing job (the id, and the record as it was). */
+  change?: { id: string; before: PlacementRecord };
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const scroll = useRef<ScrollView>(null);
-  const [type, setType] = useState<PlacementType>(initial?.placement_type ?? "wage_employment");
+  const [type, setType] = useState<PlacementType>(
+    initial?.placement_type ?? "wage_employment",
+  );
   const [employer, setEmployer] = useState(initial?.employer_name ?? "");
   const [title, setTitle] = useState(initial?.job_title ?? "");
   const sectors = useLookupOptions("enterprise.sector");
@@ -60,7 +160,9 @@ function JobForm({
   const [kebele, setKebele] = useState(initial?.kebele ?? "");
   const [start, setStart] = useState(initial?.start_date ?? "");
   const [end, setEnd] = useState(initial?.end_date ?? "");
-  const [income, setIncome] = useState(initial?.monthly_income !== undefined ? String(initial.monthly_income) : "");
+  const [income, setIncome] = useState(
+    initial?.monthly_income !== undefined ? String(initial.monthly_income) : "",
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [clientRef] = useState(() => initial?.client_ref ?? makeRef());
   const [duplicate, setDuplicate] = useState<string | null>(null);
@@ -72,19 +174,26 @@ function JobForm({
   const live = useLiveErrors(() => {
     const found: Errors = {};
     if (!person) found.form = "Open this from the participant who got the job.";
-    if (type === "wage_employment" && !employer.trim()) found.employer_name = "Employer is required for wage employment";
+    if (type === "wage_employment" && !employer.trim())
+      found.employer_name = "Employer is required for wage employment";
     if (!title.trim()) found.job_title = "Job title is required";
     if (!sector.trim()) found.sector = "Sector is required";
     if (!start) found.start_date = "Start date is required";
-    else if (start > todayISO()) found.start_date = "Start date cannot be in the future";
+    else if (start > todayISO())
+      found.start_date = "Start date cannot be in the future";
     if (end) {
-      if (start && end < start) found.end_date = "End date cannot be before the start date";
-      else if (end > todayISO()) found.end_date = "End date cannot be in the future";
+      if (start && end < start)
+        found.end_date = "End date cannot be before the start date";
+      else if (end > todayISO())
+        found.end_date = "End date cannot be in the future";
     }
     if (pay !== undefined) {
-      if (Number.isNaN(pay) || pay < 0) found.monthly_income = "Monthly income must be 0 or more";
-      else if (pay > 10_000_000) found.monthly_income = "Monthly income must be at most 10,000,000";
-      else if ((income.split(".")[1] ?? "").length > 2) found.monthly_income = "Monthly income takes at most 2 decimal places";
+      if (Number.isNaN(pay) || pay < 0)
+        found.monthly_income = "Monthly income must be 0 or more";
+      else if (pay > 10_000_000)
+        found.monthly_income = "Monthly income must be at most 10,000,000";
+      else if ((income.split(".")[1] ?? "").length > 2)
+        found.monthly_income = "Monthly income takes at most 2 decimal places";
     }
     return found;
   });
@@ -116,16 +225,52 @@ function JobForm({
     setSaving(true);
     setDuplicate(null);
     try {
+      if (change) {
+        const {
+          participant_id: _p,
+          client_ref: _r,
+          confirm_duplicate: _d,
+          _person: _n,
+          ...now
+        } = payload;
+        const values = changedValues(
+          rowToInitial(change.before),
+          now as Partial<QueuedPlacement>,
+        );
+        if (Object.keys(values).length === 0) {
+          router.back();
+          return;
+        }
+        const sent = await saveChange({
+          kind: "placement_edit",
+          label: `Change to the job of ${personName || "participant"}`,
+          id: change.id,
+          before: change.before,
+          after: values,
+          body: { values },
+          queuedId,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ["participant-detail", person],
+        });
+        if (sent === "sent") router.back();
+        else setDone("queued");
+        return;
+      }
       const result = await saveOrQueue({
         kind: "placement",
         label: `Job — ${personName || "participant"} at ${payload.employer_name}`,
         payload,
         queuedId,
       });
-      if (result === "sent") await queryClient.invalidateQueries({ queryKey: ["participant-detail", person] });
+      if (result === "sent")
+        await queryClient.invalidateQueries({
+          queryKey: ["participant-detail", person],
+        });
       setDone(result);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) setDuplicate(err.message);
+      if (err instanceof ApiError && err.status === 409)
+        setDuplicate(err.message);
       live.setServer(errorsFrom(err, "Could not save the job"));
       scroll.current?.scrollTo({ y: 0, animated: true });
     } finally {
@@ -133,19 +278,33 @@ function JobForm({
     }
   }
 
-  if (done) return <SavedNotice queued={done === "queued"} what="job" />;
+  if (done)
+    return (
+      <SavedNotice
+        queued={done === "queued"}
+        what={change ? "change" : "job"}
+        another={!change}
+      />
+    );
 
   return (
     <FormScreen
       ref={scroll}
       error={errors.form}
-      saveTitle="Save the job"
+      saveTitle={change ? "Save changes" : "Save the job"}
       saving={saving}
       onSave={() => void handleSave()}
       steps={{
         titles: ["The job", "Where"],
         fields: [
-          ["employer_name", "job_title", "sector", "start_date", "end_date", "monthly_income"],
+          [
+            "employer_name",
+            "job_title",
+            "sector",
+            "start_date",
+            "end_date",
+            "monthly_income",
+          ],
           ["region", "zone", "woreda"],
         ],
         check: live.checkStep,
@@ -153,78 +312,119 @@ function JobForm({
       }}
     >
       {duplicate ? (
-        <FormCard title="Already recorded?" hint={`${duplicate} If this is a second, different job, save it anyway.`}>
-          <Button title="It is a different job: save anyway" variant="outline" onPress={() => void handleSave(true)} />
+        <FormCard
+          title="Already recorded?"
+          hint={`${duplicate} If this is a second, different job, save it anyway.`}
+        >
+          <Button
+            title="It is a different job: save anyway"
+            variant="outline"
+            onPress={() => void handleSave(true)}
+          />
         </FormCard>
       ) : null}
       <FormStep index={0}>
-      <FormCard title={personName ? `Job for ${personName}` : "Job"} hint="It counts once someone else verifies it on the web.">
-        <ChoiceRow label="Placement type" required value={type} options={[...PLACEMENT_TYPES]} onChange={setType} />
-        <Field
-          label="Employer / business"
-          required={type === "wage_employment"}
-          value={employer}
-          onChangeText={setEmployer}
-          onBlur={() => live.touch("employer_name")}
-          error={errors.employer_name}
-        />
-        <Field label="Job title" required value={title} onChangeText={setTitle} onBlur={() => live.touch("job_title")} error={errors.job_title} />
-        {sectors.length > 0 ? (
-          <Select
-            label="Sector"
+        <FormCard
+          title={personName ? `Job for ${personName}` : "Job"}
+          hint="It counts once someone else verifies it on the web."
+        >
+          <ChoiceRow
+            label="Placement type"
             required
-            value={sector || undefined}
-            options={sectors}
-            onChange={(v) => {
-              setSector(v);
-              live.touch("sector");
-            }}
-            placeholder="Select"
-            error={errors.sector}
+            value={type}
+            options={[...PLACEMENT_TYPES]}
+            onChange={setType}
           />
-        ) : (
-          <Field label="Sector" required value={sector} onChangeText={setSector} onBlur={() => live.touch("sector")} error={errors.sector} />
-        )}
-        <DateField
-          label="Start date"
-          required
-          value={start}
-          onChange={(v) => {
-            setStart(v);
-            live.touch("start_date");
-            live.touch("end_date");
-          }}
-          max={todayISO()}
-          error={errors.start_date}
-        />
-        <DateField
-          label="End date"
-          value={end}
-          onChange={(v) => {
-            setEnd(v);
-            live.touch("end_date");
-          }}
-          min={start || undefined}
-          max={todayISO()}
-          clearable
-          error={errors.end_date}
-        />
-        <Field
-          label="Monthly income"
-          value={income}
-          onChangeText={setIncome}
-          onBlur={() => live.touch("monthly_income")}
-          keyboardType="decimal-pad"
-          error={errors.monthly_income}
-        />
-        <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
-      </FormCard>
+          <Field
+            label="Employer / business"
+            required={type === "wage_employment"}
+            value={employer}
+            onChangeText={setEmployer}
+            onBlur={() => live.touch("employer_name")}
+            error={errors.employer_name}
+          />
+          <Field
+            label="Job title"
+            required
+            value={title}
+            onChangeText={setTitle}
+            onBlur={() => live.touch("job_title")}
+            error={errors.job_title}
+          />
+          {sectors.length > 0 ? (
+            <Select
+              label="Sector"
+              required
+              value={sector || undefined}
+              options={sectors}
+              onChange={(v) => {
+                setSector(v);
+                live.touch("sector");
+              }}
+              placeholder="Select"
+              error={errors.sector}
+            />
+          ) : (
+            <Field
+              label="Sector"
+              required
+              value={sector}
+              onChangeText={setSector}
+              onBlur={() => live.touch("sector")}
+              error={errors.sector}
+            />
+          )}
+          <DateField
+            label="Start date"
+            required
+            value={start}
+            onChange={(v) => {
+              setStart(v);
+              live.touch("start_date");
+              live.touch("end_date");
+            }}
+            max={todayISO()}
+            error={errors.start_date}
+          />
+          <DateField
+            label="End date"
+            value={end}
+            onChange={(v) => {
+              setEnd(v);
+              live.touch("end_date");
+            }}
+            min={start || undefined}
+            max={todayISO()}
+            clearable
+            error={errors.end_date}
+          />
+          <Field
+            label="Monthly income"
+            value={income}
+            onChangeText={setIncome}
+            onBlur={() => live.touch("monthly_income")}
+            keyboardType="decimal-pad"
+            error={errors.monthly_income}
+          />
+          <Field
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            maxLength={2000}
+          />
+        </FormCard>
       </FormStep>
       <FormStep index={1}>
-      <FormCard title="Where the job is">
-        <PlaceFields value={place} onChange={setPlace} errors={errors} />
-        <Field label="Kebele" value={kebele} onChangeText={setKebele} autoCapitalize="words" />
-      </FormCard>
+        <FormCard title="Where the job is">
+          <PlaceFields value={place} onChange={setPlace} errors={errors} />
+          <Field
+            label="Kebele"
+            value={kebele}
+            onChangeText={setKebele}
+            autoCapitalize="words"
+          />
+        </FormCard>
       </FormStep>
     </FormScreen>
   );
