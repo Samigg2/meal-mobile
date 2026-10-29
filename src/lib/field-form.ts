@@ -182,17 +182,19 @@ export function useEditRecord<Row extends object>(
   const queued = useQueuedPayload<EditPayload<Row>>();
   const id = queued.payload?._target ?? edit;
   const wait = !!id && !queued.payload;
+  // Loaded for a waiting change too: reopened online (after "someone else changed
+  // it"), the change goes on top of the record as it is now; offline, the copy it was made on.
   const { data, error, isLoading } = useQuery({
     queryKey: ["edit", queryKey, id],
     queryFn: () => load(id!),
-    enabled: wait && queued.ready,
+    enabled: !!id && queued.ready,
   });
-  const before = queued.payload?._before ?? data ?? null;
+  const before = data ?? queued.payload?._before ?? null;
   return {
     editing: !!id,
     id,
     queuedId: queued.queuedId,
-    ready: queued.ready && !(wait && isLoading),
+    ready: queued.ready && !(!!id && isLoading),
     loadError:
       wait && !isLoading && !data
         ? error instanceof Error

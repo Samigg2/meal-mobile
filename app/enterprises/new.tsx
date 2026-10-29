@@ -259,9 +259,11 @@ function EnterpriseForm({
         }
         const body: EditPayload<
           EnterpriseRow,
-          { values: Record<string, unknown> }
+          { values: Record<string, unknown>; expected_updated_at?: string }
         > = {
           values,
+          // As this form saw it: a change made since (while this waited offline) is refused, not overwritten.
+          expected_updated_at: change.before.updated_at,
           _target: change.id,
           _before: change.before,
           _after: values as Partial<EnterpriseRow>,

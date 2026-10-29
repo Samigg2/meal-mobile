@@ -85,7 +85,15 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
  * others. It keeps the record as it was (`_before`, never sent) so it can be
  * opened again from Sync without a connection.
  */
-type QueuedEdit = Targeted<{ participant: Partial<ParticipantInput>; _before: ParticipantRow }>;
+/**
+ * `expected_updated_at`: when the record was last changed as this form saw it, so a
+ * change someone made since (while this waited offline) is not overwritten (409).
+ */
+type QueuedEdit = Targeted<{
+  participant: Partial<ParticipantInput>;
+  expected_updated_at?: string;
+  _before: ParticipantRow;
+}>;
 
 /** The fields that differ; a cleared one is sent empty so the server clears it too. */
 function changedFields(before: Partial<ParticipantInput>, after: Partial<ParticipantInput>): Partial<ParticipantInput> {
@@ -103,14 +111,18 @@ export default function EditParticipant() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["participant-detail", id],
     queryFn: () => getParticipantDetail(id),
-    enabled: !!id && queued.ready && !queued.payload,
+    enabled: !!id && queued.ready,
   });
 
   if (!queued.ready || isLoading) return <ListSkeleton rows={3} />;
-  // A waiting change opened from Sync: the record as it was, with the change on top.
+  // A waiting change opened from Sync, with the change on top of the record as it
+  // is now (online), so after "someone else changed it" saving goes over the latest
+  // version; offline, the copy the change was made on.
   if (queued.payload) {
     const { _before, participant } = queued.payload;
-    return <EditForm id={id} participant={_before} pending={participant} queuedId={queued.queuedId} />;
+    return (
+      <EditForm id={id} participant={data?.participant ?? _before} pending={participant} queuedId={queued.queuedId} />
+    );
   }
   if (isError || !data) {
     return (
@@ -233,7 +245,12 @@ function EditForm({
         router.back();
         return;
       }
-      const payload: QueuedEdit = { participant: changes, _target: id, _before: participant };
+      const payload: QueuedEdit = {
+        participant: changes,
+        expected_updated_at: participant.updated_at,
+        _target: id,
+        _before: participant,
+      };
       const result = await saveOrQueue({
         kind: "participant_edit",
         label: `Change to ${participant.full_name}`,

@@ -136,6 +136,9 @@ export function formFor(item: QueuedItem): { pathname: string; params: Record<st
 const CONFLICT: Partial<Record<QueuedKind, (message: string) => string>> = {
   participant: (m) => `Not uploaded: ${m}. Discard this copy if it is the same person.`,
   survey_response: (m) => `Not uploaded: ${m}. Discard this copy if this person already answered.`,
+  // Someone changed the record while this waited (or a duplicate ID): Fix reopens it on the latest version.
+  participant_edit: (m) => `Not uploaded: ${m}. Tap Fix: it opens the latest version with your change on top.`,
+  enterprise_edit: (m) => `Not uploaded: ${m}. Tap Fix: it opens the latest version with your change on top.`,
 };
 const conflict = (kind: QueuedKind, message: string) => CONFLICT[kind]?.(message) ?? `Not uploaded: ${message}`;
 
