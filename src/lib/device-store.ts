@@ -8,31 +8,45 @@ import { secureStorage } from "./storage";
 /**
  * What the app keeps on the phone, in one SQLite database (it replaced
  * AsyncStorage, which caps out around 6 MB on Android and rewrites the whole
- * value on every save):
+ * value on every save). The whole file is encrypted by SQLCipher (app.json,
+ * expo-sqlite `useSQLCipher`) with a key kept in the phone's secure store, so
+ * search runs in SQLite itself, at native speed, on data that stays encrypted
+ * at rest (Proclamation 1321/2024). Decided 2026-10-29.
  *
- *   queue  one row per form waiting to upload. Its payload and label hold
- *          personal data (names), so both are encrypted (AES-GCM) with a key
- *          kept in the phone's secure store, and the row is deleted as soon
- *          as it is sent.
- *   cache  reference lists and survey forms for offline use; no personal
- *          data by design (offline-cache.ts), so stored as it is.
+ *   queue          one row per form waiting to upload; its payload and label are
+ *                  also sealed (AES-GCM) one by one, as before SQLCipher, and the
+ *                  row is deleted as soon as it is sent.
+ *   cache          reference lists, survey forms, opened records (offline-cache.ts).
+ *   register_rows  one row per participant, enterprise, job or loan of the
+ *                  person's own organization, for lists and search with no
+ *                  connection (offline-lists.ts).
+ *   meta           small markers: when each register was saved, one-time moves.
  *
- * Anything left in AsyncStorage by an older version of the app is moved in
- * once, then removed there.
+ * Expo Go has no SQLCipher, so there the file is plain: registers are then kept
+ * only in development builds (`keepsRegisters`). The older plain database and
+ * anything left in AsyncStorage are moved in once, then removed.
  */
 
-const DB_NAME = "meal-mis.db";
+const DB_NAME = "meal-mis-v2.db";
+/** The plain database used before SQLCipher (until 2026-10-29). */
+const OLD_DB_NAME = "meal-mis.db";
+const MOVED_MARK = "moved:meal-mis.db";
 const KEY_NAME = "meal-mis.device-key.v1";
 const OLD_QUEUE_KEY = "meal-mis.queue.v1";
 const OLD_CACHE_PREFIX = "meal-mis.cache.v1:";
 
 let ready: Promise<SQLite.SQLiteDatabase> | null = null;
+let encrypted = false;
 
 /** The database, created and filled from the old storage on first use. */
 export function db(): Promise<SQLite.SQLiteDatabase> {
   if (!ready) {
     ready = (async () => {
       const database = await SQLite.openDatabaseAsync(DB_NAME);
+      // Must come first: SQLCipher reads nothing until it has the key. Plain SQLite ignores it.
+      await database.execAsync(`PRAGMA key = "x'${bytesToHex(await deviceKey())}'";`);
+      const cipher = await database.getFirstAsync<{ cipher_version?: string }>("PRAGMA cipher_version");
+      encrypted = !!cipher?.cipher_version;
       await database.execAsync(`
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS queue (
@@ -50,7 +64,22 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
           value     TEXT NOT NULL,
           saved_at  TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS register_rows (
+          register  TEXT NOT NULL,
+          id        TEXT NOT NULL,
+          pos       INTEGER NOT NULL,
+          search    TEXT NOT NULL,
+          data      TEXT NOT NULL,
+          gen       TEXT NOT NULL,
+          PRIMARY KEY (register, id)
+        );
+        CREATE INDEX IF NOT EXISTS register_rows_pos ON register_rows (register, pos);
+        CREATE TABLE IF NOT EXISTS meta (
+          key    TEXT PRIMARY KEY NOT NULL,
+          value  TEXT NOT NULL
+        );
       `);
+      await moveFromOldDatabase(database);
       await moveFromAsyncStorage(database);
       return database;
     })();
@@ -59,6 +88,15 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
     });
   }
   return ready;
+}
+
+/**
+ * Whether the registers (names, IDs, phones) may be kept on this phone: only in
+ * an encrypted database, or in a development build for testing in Expo Go.
+ */
+export async function keepsRegisters(): Promise<boolean> {
+  await db();
+  return encrypted || __DEV__;
 }
 
 /* ------------------------------ encryption ------------------------------ */
@@ -94,7 +132,56 @@ export async function open(stored: string): Promise<string> {
   return bytesToUtf8(gcm(await deviceKey(), hexToBytes(nonce)).decrypt(hexToBytes(sealed)));
 }
 
-/* --------------------------- the one-time move --------------------------- */
+/* --------------------------- the one-time moves -------------------------- */
+
+/**
+ * The waiting forms and saved copies of the plain database used before SQLCipher.
+ * The old whole-register copies (`list:*`) are left behind: they download again
+ * row by row. The old file is removed only once everything is in.
+ */
+async function moveFromOldDatabase(database: SQLite.SQLiteDatabase) {
+  if (await database.getFirstAsync("SELECT 1 FROM meta WHERE key = ?", [MOVED_MARK])) return;
+  const old = await SQLite.openDatabaseAsync(OLD_DB_NAME);
+  try {
+    const tables = await old.getAllAsync<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'");
+    const has = (t: string) => tables.some((x) => x.name === t);
+    if (has("queue")) {
+      for (const q of await old.getAllAsync<QueueRow>("SELECT * FROM queue")) {
+        await database.runAsync(
+          "INSERT OR IGNORE INTO queue (id, kind, label, payload, created_at, attempts, last_error, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [q.id, q.kind, q.label, q.payload, q.created_at, q.attempts ?? 0, q.last_error ?? null, q.owner ?? null],
+        );
+      }
+    }
+    if (has("cache")) {
+      for (const c of await old.getAllAsync<{ key: string; value: string; saved_at: string }>(
+        "SELECT key, value, saved_at FROM cache WHERE key NOT LIKE 'list:%'",
+      )) {
+        await database.runAsync("INSERT OR IGNORE INTO cache (key, value, saved_at) VALUES (?, ?, ?)", [
+          c.key,
+          c.value,
+          c.saved_at,
+        ]);
+      }
+    }
+  } finally {
+    await old.closeAsync();
+  }
+  await database.runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [MOVED_MARK, new Date().toISOString()]);
+  await SQLite.deleteDatabaseAsync(OLD_DB_NAME).catch(() => undefined);
+}
+
+interface QueueRow {
+  id: string;
+  kind: string;
+  label: string;
+  payload: string;
+  created_at: string;
+  /** Missing in the oldest versions of the table. */
+  attempts?: number;
+  last_error?: string | null;
+  owner?: string | null;
+}
 
 async function moveFromAsyncStorage(database: SQLite.SQLiteDatabase) {
   let keys: readonly string[] = [];

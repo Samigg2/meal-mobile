@@ -10,7 +10,6 @@ export default function Enterprises() {
     <RecordList
       queryKey="enterprises"
       copy={enterprisesCopy}
-      searchText={(e) => `${e.enterprise_name} ${e.owner_name ?? ""} ${e.woreda ?? ""}`}
       fetch={listEnterprisesPage}
       topic="enterprises"
       noun={["enterprise", "enterprises"]}
@@ -21,15 +20,15 @@ export default function Enterprises() {
           label: "Pending",
           value: "submitted",
           query: { review_status: "submitted" },
-          test: (e) => e.review_status === "submitted",
+          where: { review_status: "submitted" },
         },
         {
           label: "Verified",
           value: "approved",
           query: { review_status: "approved" },
-          test: (e) => e.review_status === "approved",
+          where: { review_status: "approved" },
         },
-        { label: "Inactive", value: "inactive", query: { status: "inactive" }, test: (e) => e.status === "inactive" },
+        { label: "Inactive", value: "inactive", query: { status: "inactive" }, where: { status: "inactive" } },
       ]}
       toRow={(e) =>
         enterpriseRow(e, () =>

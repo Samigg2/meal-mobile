@@ -21,14 +21,13 @@ export default function Loans() {
     <RecordList
       queryKey="loans"
       copy={loansCopy}
-      searchText={(l) => `${l.borrower} ${l.provider_name ?? ""}`}
       fetch={listLoansPage}
       topic="loans"
       noun={["loan", "loans"]}
       searchHint="Search borrower"
       chips={[
         { label: "All", value: "all" },
-        ...STATUS.map((s) => ({ ...s, query: { status: s.value }, test: (l: { status: string }) => l.status === s.value })),
+        ...STATUS.map((s) => ({ ...s, query: { status: s.value }, where: { status: s.value } })),
       ]}
       toRow={(l) => {
         const person = l.participant_id ?? l.enterprises?.owner_participant_id ?? null;

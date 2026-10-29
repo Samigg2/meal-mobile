@@ -12,6 +12,7 @@ import {
   placementsCopy,
 } from "@/lib/data";
 import { ApiError } from "@/lib/api";
+import type { ListCopy } from "@/lib/offline-lists";
 import { useAuth } from "@/lib/auth";
 import { enterpriseRow, jobRow, participantRow } from "@/components/register-rows";
 import { EmptyState, Loading, PersonRow, SearchBar, Text } from "@/components/ui";
@@ -19,20 +20,17 @@ import { colors, spacing } from "@/theme";
 
 const LIMIT = 5;
 
-/** The first matches from the server; offline, from the copy saved on the phone. */
+/** The first matches from the server; offline, from the copy saved on the phone (one SQLite query). */
 async function find<T>(
   fetch: (q: { q: string; limit: number; offset: number }) => Promise<{ rows: T[] }>,
-  copy: { read: () => Promise<{ data: { rows: T[] } } | null> },
+  copy: ListCopy<T>,
   term: string,
-  text: (row: T) => string,
 ): Promise<T[]> {
   try {
     return (await fetch({ q: term, limit: LIMIT, offset: 0 })).rows;
   } catch (error) {
     if (error instanceof ApiError && error.isNetworkError) {
-      const saved = await copy.read();
-      const words = term.toLowerCase();
-      return (saved?.data.rows ?? []).filter((r) => text(r).toLowerCase().includes(words)).slice(0, LIMIT);
+      return (await copy.query({ term, limit: LIMIT })).rows;
     }
     throw error;
   }
@@ -54,19 +52,17 @@ export default function Search() {
   const participants = useQuery({
     queryKey: ["search", "participants", term],
     enabled: ready && people,
-    queryFn: () =>
-      find(listParticipantsPage, participantsCopy, term, (p) => `${p.full_name} ${p.participant_id} ${p.phone ?? ""}`),
+    queryFn: () => find(listParticipantsPage, participantsCopy, term),
   });
   const enterprises = useQuery({
     queryKey: ["search", "enterprises", term],
     enabled: ready && can("enterprises"),
-    queryFn: () => find(listEnterprisesPage, enterprisesCopy, term, (e) => `${e.enterprise_name} ${e.owner_name ?? ""}`),
+    queryFn: () => find(listEnterprisesPage, enterprisesCopy, term),
   });
   const jobs = useQuery({
     queryKey: ["search", "jobs", term],
     enabled: ready && can("employment"),
-    queryFn: () =>
-      find(listPlacementsPage, placementsCopy, term, (j) => `${j.participant_name} ${j.employer_name ?? ""} ${j.job_title ?? ""}`),
+    queryFn: () => find(listPlacementsPage, placementsCopy, term),
   });
 
   const open = (id?: string | null) => (id && people ? () => router.push(`/participants/${id}`) : undefined);

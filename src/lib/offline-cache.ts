@@ -86,10 +86,13 @@ export async function cachedAt(key: string): Promise<string | null> {
   return (await readCache(key))?.savedAt ?? null;
 }
 
-/** Removes the encrypted copies (rosters and the like) when someone signs out of this phone. */
+/** Removes the encrypted copies (rosters, opened records, the saved registers) when someone signs out of this phone. */
 export async function clearSecretCache(): Promise<void> {
   try {
-    await (await db()).runAsync("DELETE FROM cache WHERE value LIKE ?", [`${SEALED}%`]);
+    const database = await db();
+    await database.runAsync("DELETE FROM cache WHERE value LIKE ?", [`${SEALED}%`]);
+    await database.runAsync("DELETE FROM register_rows");
+    await database.runAsync("DELETE FROM meta WHERE key LIKE 'saved:%'");
   } catch {
     /* nothing stored */
   }

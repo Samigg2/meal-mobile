@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { UserPlus, UsersRound, X } from "lucide-react-native";
 import { listParticipantsPage, participantsCopy } from "@/lib/data";
 import { ApiError } from "@/lib/api";
-import { updatedLabel, useListCopy } from "@/lib/offline-lists";
+import { updatedLabel, useListCopy, useLocalPages, type Where } from "@/lib/offline-lists";
 import { useAuth } from "@/lib/auth";
 import { participantRow } from "@/components/register-rows";
 import {
@@ -44,14 +44,33 @@ const FILTER_LABELS: Record<keyof Filters, string> = {
 const PAGE_SIZE = 30;
 
 /** The chips above the list: one quick filter at a time, on top of the filter sheet. */
-const CHIPS: { label: string; value: string; query?: Record<string, string>; test?: (p: ParticipantRow) => boolean }[] = [
+const CHIPS: { label: string; value: string; query?: Record<string, string>; where?: Where }[] = [
   { label: "All", value: "all" },
-  { label: "Pending", value: "submitted", query: { review_status: "submitted" }, test: (p) => p.review_status === "submitted" },
-  { label: "Approved", value: "approved", query: { review_status: "approved" }, test: (p) => p.review_status === "approved" },
-  { label: "Female", value: "female", query: { sex: "female" }, test: (p) => p.sex === "female" },
-  { label: "Youth", value: "youth", query: { is_youth: "yes" }, test: (p) => !!p.is_youth },
-  { label: "Disability", value: "disability", query: { disability: "yes" }, test: (p) => !!p.disability },
+  { label: "Pending", value: "submitted", query: { review_status: "submitted" }, where: { review_status: "submitted" } },
+  { label: "Approved", value: "approved", query: { review_status: "approved" }, where: { review_status: "approved" } },
+  { label: "Female", value: "female", query: { sex: "female" }, where: { sex: "female" } },
+  { label: "Youth", value: "youth", query: { is_youth: "yes" }, where: { is_youth: true } },
+  { label: "Disability", value: "disability", query: { disability: "yes" }, where: { disability: true } },
 ];
+
+/** The filter sheet and the chip as one filter on the saved copy; a chip and a filter that disagree match nothing. */
+function offlineWhere(filters: Filters, chip?: Where): Where | false {
+  const flag = (v?: string) => (v ? v === "yes" : undefined);
+  const sheet: Record<string, string | boolean | undefined> = {
+    status: filters.status,
+    sex: filters.sex,
+    is_youth: flag(filters.youth),
+    disability: flag(filters.disability),
+    consent_given: flag(filters.consent),
+  };
+  const where: Where = {};
+  for (const [k, v] of Object.entries(sheet)) if (v !== undefined) where[k] = v;
+  for (const [k, v] of Object.entries(chip ?? {})) {
+    if (k in where && where[k] !== v) return false;
+    where[k] = v;
+  }
+  return where;
+}
 
 const yesNo = [
   { label: "Yes", value: "yes" as const },
@@ -107,22 +126,13 @@ export default function Participants() {
   // No connection: the saved copy of the whole register, searched and filtered here on the phone.
   const offline = isError && error instanceof ApiError && error.isNetworkError;
   const saved = useListCopy(participantsCopy, !!data && !isError);
-  const showSaved = offline && !!saved.rows;
-  const words = term.toLowerCase();
-  const yes = (flag: boolean | null | undefined, want?: string) => !want || (want === "yes") === !!flag;
-  const filtered = showSaved
-    ? (saved.rows ?? []).filter(
-        (r) =>
-          (!words || `${r.full_name} ${r.participant_id} ${r.phone ?? ""}`.toLowerCase().includes(words)) &&
-          (!filters.status || r.status === filters.status) &&
-          (!filters.sex || r.sex === filters.sex) &&
-          yes(r.is_youth, filters.youth) &&
-          yes(r.disability, filters.disability) &&
-          yes(r.consent_given, filters.consent) &&
-          (!quick?.test || quick.test(r)),
-      )
-    : (data?.pages.flatMap((p) => p.rows) ?? []);
-  const total = showSaved ? filtered.length : (data?.pages[0]?.total ?? filtered.length);
+  const showSaved = offline && saved.hasCopy;
+  // Offline: pages of the saved copy, searched and filtered in SQLite.
+  const local = useLocalPages(participantsCopy, { term, where: offlineWhere(filters, quick?.where) }, PAGE_SIZE, showSaved);
+  const pages = showSaved ? local : { data, hasNextPage, isFetchingNextPage, fetchNextPage };
+  const filtered: ParticipantRow[] = pages.data?.pages.flatMap((p) => p.rows) ?? [];
+  const total = pages.data?.pages[0]?.total ?? filtered.length;
+  const capped = showSaved && !!local.data?.pages[0]?.capped;
 
   const activeFilters = (Object.keys(filters) as (keyof Filters)[]).filter((k) => filters[k]);
   const narrowed = !!term || activeFilters.length > 0 || chip !== "all";
@@ -178,7 +188,8 @@ export default function Participants() {
         ) : null}
         {!isLoading || showSaved ? (
           <Text style={styles.count}>
-            {total.toLocaleString()} participant{total === 1 ? "" : "s"}
+            {total.toLocaleString()}
+            {capped ? "+" : ""} participant{total === 1 && !capped ? "" : "s"}
             {narrowed ? " found" : ""}
           </Text>
         ) : null}
@@ -193,10 +204,10 @@ export default function Participants() {
           contentContainerStyle={styles.list}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+            if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
           }}
           ListFooterComponent={
-            isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={colors.primary} /> : null
+            pages.isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={colors.primary} /> : null
           }
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />

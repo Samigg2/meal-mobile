@@ -1,6 +1,6 @@
 import { api, ApiError } from "./api";
 import { cachedFetch, cachedFetchStamped } from "./offline-cache";
-import { listCopy } from "./offline-lists";
+import { listCopy, type ListCopy } from "./offline-lists";
 import { fetchLookups, fetchSettings } from "./reference";
 import type { PermissionModule } from "./permissions";
 import type { PillTone } from "@/theme";
@@ -123,7 +123,7 @@ export const enterprisesCopy = listCopy<EnterpriseRow>("enterprises", listEnterp
   woreda: e.woreda,
   review_status: e.review_status,
   created_at: e.created_at,
-}) as EnterpriseRow);
+}) as EnterpriseRow, (e) => `${e.enterprise_name} ${e.owner_name ?? ""} ${e.woreda ?? ""}`);
 
 /** One enterprise; kept encrypted once opened, so it opens again with no connection. */
 export const getEnterprise = (id: string) =>
@@ -159,7 +159,7 @@ export const placementsCopy = listCopy<PlacementListRow>("placements", listPlace
   start_date: j.start_date,
   verified_on: j.verified_on,
   status: j.status,
-}) as PlacementListRow);
+}) as PlacementListRow, (j) => `${j.participant_name} ${j.employer_name ?? ""} ${j.job_title ?? ""}`);
 
 export type LoanListRow = LoanApplicationRow & {
   borrower: string;
@@ -183,7 +183,7 @@ export const loansCopy = listCopy<LoanListRow>("loans", listLoansPage, (l) => ({
   currency: l.currency,
   application_date: l.application_date,
   status: l.status,
-}) as LoanListRow);
+}) as LoanListRow, (l) => `${l.borrower} ${l.provider_name ?? ""}`);
 
 /** Newest-first pages for the Home tabs (no copy kept offline). */
 export const listFeedbackPage = (q: PageQuery) => api.get<Page<FeedbackRow>>("/feedback/page", q);
@@ -300,20 +300,19 @@ export const participantsCopy = listCopy<ParticipantRow>("participants", (q) => 
   consent_given: p.consent_given,
   is_youth: p.is_youth,
   disability: p.disability,
-}) as ParticipantRow);
+}) as ParticipantRow, (p) => `${p.full_name} ${p.participant_id} ${p.phone ?? ""}`);
 
 /** The newest rows of a register for Home; offline, the first of its saved copy (servers list newest first). */
 export async function newestOf<T>(
   fetch: (q: { limit: number; offset: number }) => Promise<{ rows: T[] }>,
-  copy?: { read: () => Promise<{ data: { rows: T[] } } | null> },
+  copy?: ListCopy<T>,
   limit = 8,
 ): Promise<T[]> {
   try {
     return (await fetch({ limit, offset: 0 })).rows;
   } catch (error) {
-    if (copy && error instanceof ApiError && error.isNetworkError) {
-      const saved = await copy.read();
-      if (saved) return saved.data.rows.slice(0, limit);
+    if (copy && error instanceof ApiError && error.isNetworkError && (await copy.savedAt())) {
+      return (await copy.query({ limit })).rows;
     }
     throw error;
   }
@@ -344,15 +343,16 @@ export type ParticipantDetail = Awaited<ReturnType<typeof fetchParticipantDetail
 };
 
 async function detailFromCopies(id: string): Promise<ParticipantDetail | null> {
+  // Only this person's rows are read, not the whole registers.
   const [people, enterprises, jobs, loans] = await Promise.all([
-    participantsCopy.read(),
-    enterprisesCopy.read(),
-    placementsCopy.read(),
-    loansCopy.read(),
+    participantsCopy.query({ where: { id }, limit: 1 }),
+    enterprisesCopy.query({ where: { owner_participant_id: id }, limit: 1 }),
+    placementsCopy.query({ where: { participant_id: id }, limit: 100 }),
+    loansCopy.query({ where: { participant_id: id }, limit: 100 }),
   ]);
-  const participant = people?.data.rows.find((p) => p.id === id);
+  const participant = people.rows[0];
   if (!participant) return null;
-  const enterprise = enterprises?.data.rows.find((e) => e.owner_participant_id === id);
+  const enterprise = enterprises.rows[0];
   return {
     participant,
     enterprise: enterprise
@@ -364,28 +364,24 @@ async function detailFromCopies(id: string): Promise<ParticipantDetail | null> {
         }
       : null,
     trainings: [],
-    employment: (jobs?.data.rows ?? [])
-      .filter((j) => j.participant_id === id)
-      .map((j) => ({
-        id: j.id,
-        placement_type: j.placement_type,
-        employer_name: j.employer_name,
-        job_title: j.job_title,
-        start_date: j.start_date,
-        status: j.status,
-        verified_on: j.verified_on,
-      })),
-    loans: (loans?.data.rows ?? [])
-      .filter((l) => l.participant_id === id)
-      .map((l) => ({
-        id: l.id,
-        product_type: l.product_type ?? "loan",
-        amount_requested: l.amount_requested,
-        currency: l.currency,
-        status: l.status,
-        application_date: l.application_date,
-        financial_service_providers: l.provider_name ? { name: l.provider_name } : null,
-      })),
+    employment: jobs.rows.map((j) => ({
+      id: j.id,
+      placement_type: j.placement_type,
+      employer_name: j.employer_name,
+      job_title: j.job_title,
+      start_date: j.start_date,
+      status: j.status,
+      verified_on: j.verified_on,
+    })),
+    loans: loans.rows.map((l) => ({
+      id: l.id,
+      product_type: l.product_type ?? "loan",
+      amount_requested: l.amount_requested,
+      currency: l.currency,
+      status: l.status,
+      application_date: l.application_date,
+      financial_service_providers: l.provider_name ? { name: l.provider_name } : null,
+    })),
     fromCopy: true,
   };
 }

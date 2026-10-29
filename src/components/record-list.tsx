@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "r
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { Page } from "@/lib/data";
 import { ApiError } from "@/lib/api";
-import { updatedLabel, useListCopy, type ListCopy } from "@/lib/offline-lists";
+import { updatedLabel, useListCopy, useLocalPages, type ListCopy, type Where } from "@/lib/offline-lists";
 import { Chips, EmptyState, ListSkeleton, PersonRow, SearchBar, Text } from "@/components/ui";
 import { colors, spacing, topics, type TopicName } from "@/theme";
 
@@ -11,12 +11,12 @@ const PAGE_SIZE = 30;
 
 type Row = Omit<ComponentProps<typeof PersonRow>, "last"> & { id: string };
 
-/** A filter chip: what the server is asked for, and the same test on the saved copy offline. */
-export interface ListChip<T> {
+/** A filter chip: what the server is asked for, and the same filter on the saved copy offline (false: not offline). */
+export interface ListChip {
   label: string;
   value: string;
   query?: Record<string, string>;
-  test?: (row: T) => boolean;
+  where?: Where | false;
 }
 
 /**
@@ -31,7 +31,6 @@ export function RecordList<T>({
   noun,
   searchHint,
   copy,
-  searchText,
   chips,
 }: {
   queryKey: string;
@@ -41,11 +40,10 @@ export function RecordList<T>({
   /** Singular and plural, for the count line. */
   noun: [string, string];
   searchHint: string;
-  /** The complete copy kept on the phone, and the words a search looks in. */
+  /** The complete copy kept on the phone; it knows the words a search looks in. */
   copy: ListCopy<T>;
-  searchText: (row: T) => string;
   /** The first chip is "All". */
-  chips?: ListChip<T>[];
+  chips?: ListChip[];
 }) {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
@@ -73,13 +71,13 @@ export function RecordList<T>({
   // No connection: the saved copy of the whole register, searched here on the phone.
   const offline = isError && error instanceof ApiError && error.isNetworkError;
   const saved = useListCopy(copy, !!data && !isError);
-  const words = term.toLowerCase();
-  const offlineRows = (saved.rows ?? []).filter(
-    (r) => (!words || searchText(r).toLowerCase().includes(words)) && (!current?.test || current.test(r)),
-  );
-  const showSaved = offline && !!saved.rows;
-  const rows = (showSaved ? offlineRows : (data?.pages.flatMap((p) => p.rows) ?? [])).map(toRow);
-  const total = showSaved ? rows.length : (data?.pages[0]?.total ?? rows.length);
+  const showSaved = offline && saved.hasCopy;
+  // Offline: pages of the saved copy, searched and filtered in SQLite.
+  const local = useLocalPages(copy, { term, where: current?.where }, PAGE_SIZE, showSaved);
+  const pages = showSaved ? local : { data, hasNextPage, isFetchingNextPage, fetchNextPage };
+  const rows = (pages.data?.pages.flatMap((p) => p.rows) ?? []).map(toRow);
+  const total = pages.data?.pages[0]?.total ?? rows.length;
+  const capped = showSaved && !!local.data?.pages[0]?.capped;
   const t = topics[topic];
   const filtered = !!term || (!!chips && chip !== chips[0]?.value);
 
@@ -110,7 +108,8 @@ export function RecordList<T>({
         ) : null}
         {!isLoading || showSaved ? (
           <Text style={styles.count}>
-            {total.toLocaleString()} {total === 1 ? noun[0] : noun[1]}
+            {total.toLocaleString()}
+            {capped ? "+" : ""} {total === 1 ? noun[0] : noun[1]}
             {filtered ? " found" : ""}
           </Text>
         ) : null}
@@ -124,10 +123,10 @@ export function RecordList<T>({
           contentContainerStyle={styles.list}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+            if (pages.hasNextPage && !pages.isFetchingNextPage) void pages.fetchNextPage();
           }}
           ListFooterComponent={
-            isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={colors.primary} /> : null
+            pages.isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={colors.primary} /> : null
           }
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.primary} />
