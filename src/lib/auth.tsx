@@ -30,7 +30,10 @@ interface AuthState {
   ready: boolean;
   loadingProfile: boolean;
   isGlobalScope: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  /** The region of the person's cluster (/auth/me); null for national staff or before it loads. */
+  clusterRegion: string | null;
+  /** `keep` false: signed out when the app closes ("Keep me signed in" off). */
+  signIn: (email: string, password: string, keep?: boolean) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   can: (module: PermissionModule, action?: PermissionAction) => boolean;
   refreshProfile: () => Promise<void>;
@@ -44,14 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [ready, setReady] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [clusterRegion, setClusterRegion] = useState<string | null>(null);
   // Bumped when the permission overrides change, so `can` is recomputed.
   const [permissionsVersion, setPermissionsVersion] = useState(0);
 
   const fetchProfile = useCallback(async () => {
     setLoadingProfile(true);
     try {
-      const data = await api.get<{ profile: ProfileRow; roles: AppRole[] }>("/auth/me");
+      const data = await api.get<{ profile: ProfileRow; roles: AppRole[]; cluster_region?: string | null }>("/auth/me");
       setProfile(data.profile);
+      setClusterRegion(data.cluster_region ?? null);
       setRoles(data.roles);
       // Refresh the reference lists and survey forms kept for offline work, in
       // the background, whenever the officer is online and signed in.
@@ -95,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!next) {
         setProfile(null);
         setRoles([]);
+        setClusterRegion(null);
       }
     });
     return () => {
@@ -104,10 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, keep = true) => {
       try {
         const session = await api.anon.post<SessionResponse>("/auth/login", { email, password });
-        await saveSession(session);
+        await saveSession(session, keep);
         setUser(session.user);
         await fetchProfile();
         return {};
@@ -128,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setRoles([]);
+    setClusterRegion(null);
   }, []);
 
   const can = useCallback(
@@ -147,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // role alone, so a programme manager assigned to a cluster was shown as
       // seeing every organization.
       isGlobalScope: isGlobalScope(roles, profile?.organization_id ?? null),
+      clusterRegion,
       signIn,
       signOut,
       can,
@@ -154,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     // permissionsVersion: role labels (roleLabel) read the list loaded above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, profile, roles, ready, loadingProfile, signIn, signOut, can, fetchProfile, permissionsVersion],
+    [user, profile, roles, ready, loadingProfile, clusterRegion, signIn, signOut, can, fetchProfile, permissionsVersion],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

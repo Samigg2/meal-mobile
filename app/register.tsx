@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import {
   Loading,
   Section,
   Select,
+  StepBar,
   StickyFooter,
   Text,
   Toggle,
@@ -46,6 +47,9 @@ import { colors, spacing } from "@/lib/theme";
 const CONSENT_TEXT =
   "I agree that RAYEE II may collect and store my personal information to run the programme. I understand that staff will review my registration, and that I can withdraw my consent at any time.";
 
+/** One section a step, like the officer's registration form (12Beforeend). */
+const STEPS = ["Phone", "Your ID", "About you", "Where you live", "Consent"];
+
 const message = (e: unknown) =>
   e instanceof ApiError
     ? e.isNetworkError
@@ -58,6 +62,9 @@ const message = (e: unknown) =>
 export default function Register() {
   const router = useRouter();
   const options = useQuery({ queryKey: ["public-registration-options"], queryFn: getRegistrationOptions, retry: 1 });
+  const scroll = useRef<ScrollView>(null);
+  const [step, setStep] = useState(0);
+  const [stepError, setStepError] = useState<string | null>(null);
 
   const [phone, setPhone] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
@@ -175,27 +182,54 @@ export default function Register() {
   }
 
   const phoneOk = PHONE_RE.test(phone.trim());
-  const canSubmit =
-    !!phoneToken &&
-    !!fullName.trim() &&
-    !!sex &&
-    !!dob &&
-    (!!nationalId.trim() || !!kebeleId.trim()) &&
-    !!region &&
-    (!needsCluster || !!cluster) &&
-    !!zone.trim() &&
-    !!chosenWoreda(options.data, zone.trim(), woreda, woredaOther) &&
-    consent;
+  // What still stops each step, in her words; Next stays on the step until it is done.
+  const problems: (string | null)[] = [
+    phoneToken ? null : "Confirm your phone number with the code we send.",
+    nationalId.trim() || kebeleId.trim() ? null : "Give your National ID or your Kebele ID.",
+    !fullName.trim() ? "Give your full name." : !sex ? "Choose your sex." : !dob ? "Give your date of birth." : null,
+    !region
+      ? "Choose your region."
+      : needsCluster && !cluster
+        ? "Choose your RAYEE cluster."
+        : !zone.trim()
+          ? "Give your zone."
+          : !chosenWoreda(options.data, zone.trim(), woreda, woredaOther)
+            ? "Give your woreda."
+            : null,
+    consent ? null : 'Tick "I agree" to send your registration.',
+  ];
+  const goToStep = (next: number) => {
+    setStepError(null);
+    setStep(next);
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  };
+  const goNext = () => {
+    if (problems[step]) setStepError(problems[step]);
+    else goToStep(step + 1);
+  };
+  const send = () => {
+    const first = problems.findIndex(Boolean);
+    if (first >= 0) {
+      goToStep(first);
+      setStepError(problems[first]);
+      return;
+    }
+    submit.mutate();
+  };
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.intro}>
-          Register for the RAYEE II programme. A programme officer checks every registration before it is
-          accepted; you can follow it from this phone.
-        </Text>
+      <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        {step === 0 ? (
+          <Text style={styles.intro}>
+            Register for the RAYEE II programme. A programme officer checks every registration before it is
+            accepted; you can follow it from this phone.
+          </Text>
+        ) : null}
+        <StepBar steps={STEPS} step={step} onStep={(i) => i < step && goToStep(i)} />
 
-        <Section title="1. Your phone number" icon={Phone} description="We send a 6-digit code to prove it is yours.">
+        {step === 0 ? (
+        <Section title="Your phone number" icon={Phone} description="We send a 6-digit code to prove it is yours.">
           <Field
             label="Phone number"
             required
@@ -248,8 +282,10 @@ export default function Register() {
             </>
           )}
         </Section>
+        ) : null}
 
-        <Section title="2. Your ID" icon={IdCard} description="A National ID (Fayida) or a Kebele ID is required.">
+        {step === 1 ? (
+        <Section title="Your ID" icon={IdCard} description="A National ID (Fayida) or a Kebele ID is required.">
           <Field
             label="National ID (Fayida)"
             value={nationalId}
@@ -282,8 +318,10 @@ export default function Register() {
           ) : null}
           <Field label="Kebele ID" value={kebeleId} onChangeText={setKebeleId} hint="If you have no National ID" />
         </Section>
+        ) : null}
 
-        <Section title="3. About you" icon={User}>
+        {step === 2 ? (
+        <Section title="About you" icon={User}>
           <Field label="Full name" required value={fullName} onChangeText={setFullName} autoCapitalize="words" />
           <ChoiceRow
             label="Sex"
@@ -306,8 +344,10 @@ export default function Register() {
           <Toggle label="I live with a disability" value={disability} onChange={setDisability} />
           <AnswerPickers options={options.data} value={answers} onChange={setAnswers} />
         </Section>
+        ) : null}
 
-        <Section title="4. Where you live" icon={MapPin}>
+        {step === 3 ? (
+        <Section title="Where you live" icon={MapPin}>
           <Select
             label="Region"
             required
@@ -350,22 +390,32 @@ export default function Register() {
           />
           <Field label="Kebele" value={kebele} onChangeText={setKebele} />
         </Section>
+        ) : null}
 
-        <Section title="5. Consent" icon={ShieldCheck}>
+        {step === 4 ? (
+        <Section title="Consent" icon={ShieldCheck}>
           <Text style={styles.note}>{CONSENT_TEXT}</Text>
           <Toggle label="I agree" value={consent} onChange={setConsent} />
         </Section>
+        ) : null}
 
-        <ErrorText>{submit.error ? message(submit.error) : null}</ErrorText>
+        <ErrorText>{stepError ?? (submit.error ? message(submit.error) : null)}</ErrorText>
       </ScrollView>
       <StickyFooter>
-        <Button
-          title="Send my registration"
-          icon={Send}
-          onPress={() => submit.mutate()}
-          loading={submit.isPending}
-          disabled={!canSubmit}
-        />
+        <View style={styles.footerRow}>
+          {step > 0 ? (
+            <View style={styles.grow}>
+              <Button title="Back" variant="outline" onPress={() => goToStep(step - 1)} />
+            </View>
+          ) : null}
+          <View style={styles.grow}>
+            {step < STEPS.length - 1 ? (
+              <Button title="Next step" onPress={goNext} />
+            ) : (
+              <Button title="Send my registration" icon={Send} onPress={send} loading={submit.isPending} />
+            )}
+          </View>
+        </View>
       </StickyFooter>
     </KeyboardAvoidingView>
   );
@@ -373,6 +423,8 @@ export default function Register() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  footerRow: { flexDirection: "row", gap: spacing.sm },
+  grow: { flex: 1 },
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
   intro: { fontSize: 14, color: colors.secondary, lineHeight: 20 },
   note: { fontSize: 12, color: colors.muted, lineHeight: 18 },

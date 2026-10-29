@@ -45,6 +45,10 @@ export default function TrainingList() {
   return (
     <FlatList
       data={events}
+      // Drawn as it scrolls, so hundreds of trainings stay quick (12Beforeend).
+      initialNumToRender={15}
+      maxToRenderPerBatch={20}
+      windowSize={7}
       ListHeaderComponent={
         <View style={styles.search}>
           <SearchBar value={search} onChangeText={setSearch} placeholder="Search trainings" />

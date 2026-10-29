@@ -292,9 +292,9 @@ export default function ParticipantDetail() {
                     }
                   />
                 ) : null}
-                {can("employment", "write") &&
-                !job.verified_on &&
-                !data.fromCopy ? (
+                {/* Like an enterprise, a verified job can be changed too: the server
+                    sends a changed one back for a second person to verify (12Beforeend). */}
+                {can("employment", "write") && !data.fromCopy ? (
                   <Button
                     title="Edit"
                     icon={Pencil}

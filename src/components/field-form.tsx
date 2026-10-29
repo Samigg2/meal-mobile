@@ -13,6 +13,7 @@ import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { CircleCheck, CloudUpload, Crosshair, Plus } from "lucide-react-native";
 import { Button, Card, ErrorText, Field, Select, StepBar, StickyFooter, Text } from "@/components/ui";
+import { useRegionChoices } from "@/lib/region-lock";
 import { useLocations } from "@/lib/reference";
 import { colors, spacing } from "@/theme";
 
@@ -218,6 +219,11 @@ export function PlaceFields({
   errors?: Record<string, string | undefined>;
 }) {
   const locations = useLocations();
+  const { regions, locked } = useRegionChoices(value.region);
+  // A cluster's own region is filled in for it, as on the web.
+  useEffect(() => {
+    if (locked && !value.region) onChange({ region: locked, zone: "", woreda: "" });
+  }, [locked, value.region, onChange]);
   const zones = locations.zonesOf(value.region);
   const woredas = locations.woredasOf(value.zone);
   return (
@@ -226,7 +232,7 @@ export function PlaceFields({
         label="Region"
         required={required}
         value={value.region || undefined}
-        options={locations.regions}
+        options={regions}
         onChange={(region) => onChange({ region, zone: "", woreda: "" })}
         placeholder="Select region"
         error={errors.region}

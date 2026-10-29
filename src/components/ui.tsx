@@ -615,7 +615,11 @@ export function StatusPill({
         outline ? { backgroundColor: colors.white, borderWidth: 1, borderColor: t.fg } : { backgroundColor: t.bg },
       ]}
     >
-      {Icon ? <Icon size={12} color={t.fg} strokeWidth={2.4} /> : null}
+      {Icon ? (
+        <Icon size={12} color={t.fg} strokeWidth={2.4} />
+      ) : (
+        <View style={[styles.pillDot, { backgroundColor: t.fg }]} />
+      )}
       <Text style={[styles.pillText, { color: t.fg }]}>{sentence(label)}</Text>
     </View>
   );
@@ -738,7 +742,7 @@ export function PersonRow({
     >
       <View style={[styles.personAvatar, { backgroundColor: tint }]}>
         {Icon ? (
-          <Icon size={22} color={color} strokeWidth={2.2} />
+          <Icon size={20} color={color} strokeWidth={2.2} />
         ) : (
           <Text style={[styles.personInitials, { color }]}>{initials}</Text>
         )}
@@ -1094,13 +1098,15 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: radius.pill,
   },
-  pillText: { fontSize: 11, fontWeight: "700" },
+  /** The small dot before the label, as in the 15Beforeend design. */
+  pillDot: { width: 6, height: 6, borderRadius: 3 },
+  pillText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
   statCard: {
     flex: 1,
     minWidth: 140,
@@ -1130,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   listRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   personRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingLeft: spacing.lg },
-  personAvatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  personAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   personInitials: { fontSize: 15, fontWeight: "700" },
   personBody: {
     flex: 1,
@@ -1141,7 +1147,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
     minHeight: 70,
   },
-  personTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
+  personTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
   personMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
   personRight: { alignItems: "flex-end", gap: 6 },
   personDate: { fontSize: 12, color: colors.muted },
@@ -1154,9 +1160,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  filterChipOn: { backgroundColor: colors.primarySoft },
+  filterChipOn: { backgroundColor: colors.primary },
   filterChipText: { fontSize: 14, fontWeight: "600", color: colors.secondary },
-  filterChipTextOn: { color: colors.primaryDark },
+  filterChipTextOn: { color: colors.white },
   listTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
   listSubtitle: { fontSize: 12, color: colors.muted, marginTop: 1 },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: "#EEF2F7", overflow: "hidden" },

@@ -21,6 +21,8 @@ import {
 export const colors = {
   /** The web sidebar's soft navy. */
   navy: "#1E3A5F",
+  /** The deeper navy of the Home welcome card (15Beforeend). */
+  heroNavy: "#173766",
   /** blue-500, the web's buttons and selected items. */
   primary: "#3B82F6",
   primaryDark: "#2563EB",
@@ -28,7 +30,7 @@ export const colors = {
   accent: "#3B82F6",
   /** Kept for older call sites: the dark brand surface. */
   ink: "#1E3A5F",
-  background: "#F3F4F6",
+  background: "#F8F9FF",
   card: "#FFFFFF",
   border: "#E5E7EB",
   /** Slate text, as on the web. */

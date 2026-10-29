@@ -701,7 +701,9 @@ export type LoanProduct = (typeof LOAN_PRODUCTS)[number]["value"];
 
 export interface LoanInput {
   provider_id: string;
-  participant_id: string;
+  /** The borrower: a participant or an approved enterprise, never both (12Beforeend). */
+  participant_id?: string;
+  enterprise_id?: string;
   product_type: LoanProduct;
   amount_requested: number;
   term_months?: number;

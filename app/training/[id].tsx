@@ -84,6 +84,8 @@ function AttendanceForm({
 
   // Search only hides rows; the save below still sends everyone on the roster.
   const words = search.trim().toLowerCase();
+  // A long roster (100+) shows a page of names at a time; search finds anyone.
+  const [limit, setLimit] = useState(ROSTER_PAGE);
   const shown = roster.filter(
     (r) => !words || `${r.participants?.full_name ?? ""} ${r.participants?.participant_id ?? ""}`.toLowerCase().includes(words),
   );
@@ -169,7 +171,7 @@ function AttendanceForm({
             <Button title="Clear" variant="outline" onPress={() => setPresent(new Set())} />
           </View>
         </View>
-        {shown.map((r) => (
+        {shown.slice(0, limit).map((r) => (
           <Toggle
             key={r.participant_id}
             label={`${r.participants?.full_name ?? "Unknown"}${r.participants?.participant_id ? ` · ${r.participants.participant_id}` : ""}`}
@@ -177,6 +179,13 @@ function AttendanceForm({
             onChange={() => toggle(r.participant_id)}
           />
         ))}
+        {shown.length > limit ? (
+          <Button
+            title={`Show ${Math.min(ROSTER_PAGE, shown.length - limit)} more (${shown.length - limit} not shown)`}
+            variant="outline"
+            onPress={() => setLimit((n) => n + ROSTER_PAGE)}
+          />
+        ) : null}
         {shown.length === 0 ? <Text style={styles.meta}>No name matches.</Text> : null}
         <Text style={styles.meta}>
           Unticked names are recorded as absent for this day. Searching only hides names: everyone ticked is still saved.
@@ -185,6 +194,9 @@ function AttendanceForm({
     </FormScreen>
   );
 }
+
+/** Names shown at a time on the attendance roster. */
+const ROSTER_PAGE = 40;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

@@ -74,6 +74,11 @@ export class ApiError extends Error {
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let sessionUser: SessionUser | null = null;
+/**
+ * "Keep me signed in": when off, the session lives in memory only and closing
+ * the app signs the person out; nothing is written to the keystore (12Beforeend).
+ */
+let keepSession = true;
 
 const listeners = new Set<(user: SessionUser | null) => void>();
 
@@ -105,10 +110,21 @@ export async function loadSession(): Promise<SessionUser | null> {
   return sessionUser;
 }
 
-export async function saveSession(session: SessionResponse): Promise<void> {
+export async function saveSession(session: SessionResponse, keep = true): Promise<void> {
   accessToken = session.accessToken;
   refreshToken = session.refreshToken;
   sessionUser = session.user;
+  keepSession = keep;
+  if (!keep) {
+    // A session kept from an earlier sign-in must not come back on the next start.
+    await Promise.all([
+      secureStorage.remove(ACCESS_KEY),
+      secureStorage.remove(REFRESH_KEY),
+      secureStorage.remove(USER_KEY),
+    ]);
+    emit();
+    return;
+  }
   await Promise.all([
     secureStorage.set(ACCESS_KEY, session.accessToken),
     secureStorage.set(REFRESH_KEY, session.refreshToken),
@@ -165,10 +181,12 @@ async function refreshSession(): Promise<RefreshOutcome> {
         const session = (await response.json()) as SessionResponse;
         accessToken = session.accessToken;
         refreshToken = session.refreshToken;
-        await Promise.all([
-          secureStorage.set(ACCESS_KEY, session.accessToken),
-          secureStorage.set(REFRESH_KEY, session.refreshToken),
-        ]);
+        if (keepSession) {
+          await Promise.all([
+            secureStorage.set(ACCESS_KEY, session.accessToken),
+            secureStorage.set(REFRESH_KEY, session.refreshToken),
+          ]);
+        }
         return "ok";
       } catch {
         return "network";

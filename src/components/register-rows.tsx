@@ -1,5 +1,14 @@
 import type { ComponentProps } from "react";
-import { Store, UserRound } from "lucide-react-native";
+import {
+  BriefcaseBusiness,
+  CalendarCheck,
+  GraduationCap,
+  HandCoins,
+  MessageSquareText,
+  ShieldAlert,
+  Store,
+  UserRound,
+} from "lucide-react-native";
 import type { EnterpriseRow, FeedbackRow, ParticipantRow, SafeguardingCaseRow, TrainingEventRow } from "@/lib/types";
 import { PLACEMENT_TYPES, type ActivityRow, type LoanListRow, type PlacementListRow } from "@/lib/data";
 import { initialsOf } from "@/lib/user";
@@ -68,6 +77,7 @@ export function jobRow(j: PlacementListRow, open?: () => void): Row {
   return {
     id: j.id,
     initials: initialsOf(j.participant_name),
+    icon: BriefcaseBusiness,
     color: topics.jobs.color,
     tint: topics.jobs.tint,
     title: j.participant_name,
@@ -95,6 +105,7 @@ export function loanRow(l: LoanListRow, open?: () => void): Row {
   return {
     id: l.id,
     initials: initialsOf(l.borrower),
+    icon: HandCoins,
     color: topics.loans.color,
     tint: topics.loans.tint,
     title: l.borrower,
@@ -119,6 +130,7 @@ export function feedbackRow(f: FeedbackRow, open?: () => void): Row {
     onPress: open,
     id: f.id,
     initials: words(f.feedback_type).slice(0, 2),
+    icon: MessageSquareText,
     color: topics.disability.color,
     tint: topics.disability.tint,
     title: f.reference_code ? `${words(f.feedback_type)} · ${f.reference_code}` : words(f.feedback_type),
@@ -138,6 +150,7 @@ export function concernRow(
     onPress: open,
     id: c.id,
     initials: "SG",
+    icon: ShieldAlert,
     color: topics.safeguarding.color,
     tint: topics.safeguarding.tint,
     title: words(c.case_type),
@@ -152,6 +165,7 @@ export function trainingRow(t: TrainingEventRow, open?: () => void): Row {
   return {
     id: t.id,
     initials: initialsOf(t.title),
+    icon: GraduationCap,
     color: topics.trainings.color,
     tint: topics.trainings.tint,
     title: t.title,
@@ -174,6 +188,7 @@ export function activityRow(a: ActivityRow, open?: () => void): Row {
   return {
     id: a.id,
     initials: initialsOf(a.title),
+    icon: CalendarCheck,
     color: topics.indicators.color,
     tint: topics.indicators.tint,
     title: a.title,

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useRegionChoices } from "@/lib/region-lock";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -190,6 +191,7 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
   // Reference lists cached on the device, so the location is picked, not typed,
   // even offline. Called before any early return (rules of hooks).
   const locations = useLocations();
+  const regionChoices = useRegionChoices(region);
   const zoneOptions: Option[] = locations.zonesOf(region);
   const woredaOptions: Option[] = locations.woredasOf(zone);
   const [notes, setNotes] = useState(initial.notes ?? "");
@@ -460,7 +462,7 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
             label="Region"
             required
             value={region}
-            options={locations.regions}
+            options={regionChoices.regions}
             onChange={(v) => {
               setRegion(v);
               setZone("");

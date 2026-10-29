@@ -7,7 +7,13 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Pencil, Store, UserRound } from "lucide-react-native";
+import {
+  ChevronRight,
+  HandCoins,
+  Pencil,
+  Store,
+  UserRound,
+} from "lucide-react-native";
 import { getEnterprise, getEnterprisePerformance } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import {
@@ -171,6 +177,27 @@ export default function EnterpriseDetail() {
           />
         ) : null}
       </Card>
+
+      {/* An approved enterprise can borrow too, as on the web (12Beforeend). */}
+      {can("finance", "write") && e.review_status === "approved" ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Loans</Text>
+          <Text style={styles.meta}>
+            One open loan per enterprise at a time.
+          </Text>
+          <Button
+            title="Record a loan application"
+            icon={HandCoins}
+            variant="outline"
+            onPress={() =>
+              router.push({
+                pathname: "/finance/loan",
+                params: { enterprise: e.id, enterpriseName: e.enterprise_name },
+              })
+            }
+          />
+        </Card>
+      ) : null}
 
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Visits</Text>

@@ -1,5 +1,6 @@
 import { api, ApiError, getSessionUser } from "./api";
 import { db, open, seal } from "./device-store";
+import { uploadPhoto, type WaitingPhoto } from "./photos";
 
 /**
  * Offline-first capture queue for field data collection.
@@ -33,7 +34,8 @@ export type QueuedKind =
   | "performance_edit"
   | "follow_up_edit"
   | "feedback_edit"
-  | "safeguarding_edit";
+  | "safeguarding_edit"
+  | "document_photo";
 
 export interface QueuedItem {
   id: string;
@@ -95,6 +97,8 @@ const ROUTES: Record<QueuedKind, Route> = {
   follow_up_edit: { method: "patch", path: (id) => `/employment/follow-ups/${id}`, what: "Job follow-up change", form: "/employment/follow-up" },
   feedback_edit: { method: "patch", path: (id) => `/records/feedback/${id}`, what: "Feedback change", form: "/feedback/new" },
   safeguarding_edit: { method: "patch", path: (id) => `/records/safeguarding/${id}`, what: "Safeguarding change", form: "/safeguarding/new" },
+  // A document photo taken offline, sent by uploadPhoto (sendQueued) rather than as JSON.
+  document_photo: { method: "post", path: () => "/attachments/upload", what: "Document photo", form: "/documents" },
   activity_progress: {
     method: "patch",
     path: (id) => `/monitoring/activities/${id}/progress`,
@@ -108,6 +112,13 @@ export const kindLabel = (kind: QueuedKind) => ROUTES[kind].what;
 /** The form that opens a queued item again, filled in, to correct it. */
 export function formFor(item: QueuedItem): { pathname: string; params: Record<string, string> } {
   const route = ROUTES[item.kind];
+  if (item.kind === "document_photo") {
+    const photo = item.payload as WaitingPhoto;
+    return {
+      pathname: route.form,
+      params: { module: photo.module, id: photo.recordId, types: photo.document_type, title: "Documents" },
+    };
+  }
   const payload = item.payload as { _target?: string; template_id?: string; training_event_id?: string };
   const id = item.kind === "survey_response" || item.kind === "survey_edit"
     ? payload.template_id
@@ -227,14 +238,42 @@ export async function updateQueued(id: string, label: string, payload: unknown):
   notify();
 }
 
-/** Sends one queued body where its kind goes. */
-export function sendQueued(kind: QueuedKind, payload: unknown): Promise<unknown> {
+/**
+ * Sends one queued body where its kind goes. Photos taken with a form that was
+ * itself waiting (`_photos`) follow it, now that the record has an id.
+ */
+export async function sendQueued(kind: QueuedKind, payload: unknown): Promise<unknown> {
+  if (kind === "document_photo") return uploadPhoto(payload as WaitingPhoto);
   const route = ROUTES[kind];
-  const { _target, ...rest } = payload as { _target?: string } & Record<string, unknown>;
+  const { _target, _photos, ...rest } = payload as {
+    _target?: string;
+    _photos?: Omit<WaitingPhoto, "recordId">[];
+  } & Record<string, unknown>;
   // Keys starting with "_" stay on the phone (what the form needs to reopen it).
   const body = Object.fromEntries(Object.entries(rest).filter(([key]) => !key.startsWith("_")));
   const path = route.path(_target ?? "");
-  return route.method === "patch" ? api.patch(path, body) : api.post(path, body);
+  const result = await (route.method === "patch" ? api.patch(path, body) : api.post(path, body));
+  const recordId = (result as { id?: string } | undefined)?.id ?? _target ?? "";
+  for (const photo of _photos ?? []) {
+    await sendOrQueuePhoto({ ...photo, recordId }, `${route.what} — ${photo.document_type.replace(/_/g, " ")}`, true);
+  }
+  return result;
+}
+
+/**
+ * Uploads a document photo now, or, with no connection, keeps it (encrypted)
+ * to be sent on its own. `always`: the record is already saved, so a photo the
+ * server refuses waits in Sync with its reason instead of failing the record.
+ */
+export async function sendOrQueuePhoto(photo: WaitingPhoto, label: string, always = false): Promise<"sent" | "queued"> {
+  try {
+    await uploadPhoto(photo);
+    return "sent";
+  } catch (error) {
+    if (!always && !shouldQueue(error)) throw error;
+    await enqueue({ kind: "document_photo", label, payload: photo });
+    return "queued";
+  }
 }
 
 export async function removeFromQueue(id: string): Promise<void> {

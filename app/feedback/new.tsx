@@ -120,7 +120,8 @@ function FeedbackForm({
   const [type, setType] = useState<FeedbackType | undefined>(
     initial?.feedback_type,
   );
-  const [source, setSource] = useState(initial?.source ?? "meeting");
+  // Chosen on purpose, like the web: Next stays on this step until it is (12Beforeend).
+  const [source, setSource] = useState(initial?.source ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
   const [priority, setPriority] = useState(initial?.priority ?? "medium");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -155,6 +156,7 @@ function FeedbackForm({
     if (!received) found.received_date = "Date received is required";
     else if (received > todayISO())
       found.received_date = "Date received cannot be in the future";
+    if (sources.length > 0 && !source) found.source = "Choose the channel";
     if (!type) found.feedback_type = "Choose the complaint or feedback type";
     if (!description.trim()) found.description = "Description is required";
     if (
@@ -176,7 +178,7 @@ function FeedbackForm({
     }
     const payload: FeedbackInput = {
       feedback_type: type!,
-      source,
+      source: source || "other",
       description: description.trim(),
       received_date: received,
       category: category || undefined,
@@ -250,7 +252,7 @@ function FeedbackForm({
       steps={{
         titles: ["Intake", "Who and where", "What was said"],
         fields: [
-          ["received_date"],
+          ["received_date", "source"],
           ["reporter_age", "reporter_contact", "region", "zone", "woreda"],
           ["feedback_type", "description"],
         ],
@@ -274,9 +276,15 @@ function FeedbackForm({
           {sources.length > 0 ? (
             <Select
               label="Channel (entry point)"
-              value={source}
+              required
+              value={source || undefined}
               options={sources}
-              onChange={setSource}
+              onChange={(v) => {
+                setSource(v);
+                live.touch("source");
+              }}
+              placeholder="Choose the channel"
+              error={errors.source}
             />
           ) : null}
         </FormCard>

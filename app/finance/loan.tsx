@@ -43,17 +43,21 @@ import {
 type QueuedLoan = LoanInput & { _borrower?: string };
 
 /**
- * A participant's loan application, recorded where it is made. It starts as
+ * A participant's or an enterprise's loan application, recorded where it is made. It starts as
  * "applied": approving it and paying it out are done on the web by someone
  * else (four-eyes), never from the phone. The server checks the rest: the
  * lender offers this kind of loan, is active, a SACCO lends only to members,
  * and the borrower has no other open loan.
  */
 export default function RecordLoan() {
-  const { participant, participantName } = useLocalSearchParams<{
-    participant?: string;
-    participantName?: string;
-  }>();
+  const { participant, participantName, enterprise, enterpriseName } =
+    useLocalSearchParams<{
+      participant?: string;
+      participantName?: string;
+      /** Opened from an enterprise: the enterprise borrows (as on the web). */
+      enterprise?: string;
+      enterpriseName?: string;
+    }>();
   const edit = useEditRecord<LoanRecord>(
     async (id) =>
       (await api.get<{ loan: LoanRecord }>(`/finance/loans/${id}`)).loan,
@@ -73,8 +77,13 @@ export default function RecordLoan() {
     return (
       <LoanForm
         initial={rowToInitial(edit.row)}
-        borrower={edit.row.participant_id ?? ""}
-        borrowerName={edit.row.participants?.full_name ?? ""}
+        borrowerKind={edit.row.enterprise_id ? "enterprise" : "participant"}
+        borrower={edit.row.participant_id ?? edit.row.enterprise_id ?? ""}
+        borrowerName={
+          edit.row.participants?.full_name ??
+          edit.row.enterprises?.enterprise_name ??
+          ""
+        }
         queuedId={edit.queuedId}
         change={{ id: edit.id!, before: edit.before! }}
       />
@@ -84,8 +93,21 @@ export default function RecordLoan() {
   return (
     <LoanForm
       initial={initial}
-      borrower={initial?.participant_id ?? participant ?? ""}
-      borrowerName={initial?._borrower ?? participantName ?? ""}
+      borrowerKind={
+        (initial ? initial.enterprise_id : enterprise)
+          ? "enterprise"
+          : "participant"
+      }
+      borrower={
+        initial?.participant_id ||
+        initial?.enterprise_id ||
+        participant ||
+        enterprise ||
+        ""
+      }
+      borrowerName={
+        initial?._borrower ?? participantName ?? enterpriseName ?? ""
+      }
       queuedId={queued.queuedId}
     />
   );
@@ -95,6 +117,7 @@ export default function RecordLoan() {
 type LoanRecord = {
   provider_id: string;
   participant_id: string | null;
+  enterprise_id?: string | null;
   product_type: LoanProduct;
   amount_requested: number | string;
   term_months: number | null;
@@ -102,13 +125,16 @@ type LoanRecord = {
   application_date: string;
   notes: string | null;
   participants?: { full_name: string } | null;
+  enterprises?: { enterprise_name: string } | null;
 };
 
 /** The loan as the form's own shape, so one form serves add and change. */
 function rowToInitial(r: LoanRecord): QueuedLoan {
   return {
     provider_id: r.provider_id,
-    participant_id: r.participant_id ?? "",
+    ...(r.enterprise_id
+      ? { enterprise_id: r.enterprise_id }
+      : { participant_id: r.participant_id ?? "" }),
     product_type: r.product_type,
     amount_requested: Number(r.amount_requested),
     term_months: r.term_months ?? undefined,
@@ -121,12 +147,14 @@ function rowToInitial(r: LoanRecord): QueuedLoan {
 
 function LoanForm({
   initial,
+  borrowerKind,
   borrower,
   borrowerName,
   queuedId,
   change,
 }: {
   initial: QueuedLoan | null;
+  borrowerKind: "participant" | "enterprise";
   borrower: string;
   borrowerName: string;
   queuedId?: string;
@@ -176,12 +204,15 @@ function LoanForm({
     (k) => !offered || offered.includes(k.value),
   );
 
+  const detailKey =
+    borrowerKind === "enterprise" ? "enterprise" : "participant-detail";
   const money = numberOf(amount);
   const months = numberOf(term);
   // The web's rules and words (finance.loans.new.tsx), checked while filling and on Save.
   const live = useLiveErrors(() => {
     const found: Errors = {};
-    if (!borrower) found.form = "Open this from the participant who borrows.";
+    if (!borrower)
+      found.form = "Open this from the participant or enterprise that borrows.";
     if (!typeOf) found.provider_type = "Choose the type of provider";
     if (!provider) found.provider_id = "Choose the provider";
     if (!product) found.product_type = "Choose business loan or personal loan";
@@ -215,7 +246,9 @@ function LoanForm({
     }
     const payload: QueuedLoan = {
       provider_id: provider,
-      participant_id: borrower,
+      ...(borrowerKind === "enterprise"
+        ? { enterprise_id: borrower }
+        : { participant_id: borrower }),
       product_type: product!,
       amount_requested: money!,
       term_months: months,
@@ -230,6 +263,7 @@ function LoanForm({
       if (change) {
         const {
           participant_id: _p,
+          enterprise_id: _e,
           client_ref: _r,
           _borrower: _n,
           ...now
@@ -244,7 +278,7 @@ function LoanForm({
         }
         const sent = await saveChange({
           kind: "loan_edit",
-          label: `Change to the loan of ${borrowerName || "participant"}`,
+          label: `Change to the loan of ${borrowerName || borrowerKind}`,
           id: change.id,
           before: change.before,
           after: values,
@@ -252,7 +286,7 @@ function LoanForm({
           queuedId,
         });
         await queryClient.invalidateQueries({
-          queryKey: ["participant-detail", borrower],
+          queryKey: [detailKey, borrower],
         });
         if (sent === "sent") router.back();
         else setDone("queued");
@@ -260,13 +294,13 @@ function LoanForm({
       }
       const result = await saveOrQueue({
         kind: "loan",
-        label: `Loan — ${borrowerName || "participant"}, ${money!.toLocaleString("en")}`,
+        label: `Loan — ${borrowerName || borrowerKind}, ${money!.toLocaleString("en")}`,
         payload,
         queuedId,
       });
       if (result === "sent")
         await queryClient.invalidateQueries({
-          queryKey: ["participant-detail", borrower],
+          queryKey: [detailKey, borrower],
         });
       setDone(result);
     } catch (err) {

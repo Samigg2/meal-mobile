@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -6,7 +6,6 @@ import {
   Bell,
   BriefcaseBusiness,
   CalendarCheck,
-  ChevronLeft,
   ChevronRight,
   ChevronUp,
   CircleCheck,
@@ -17,6 +16,7 @@ import {
   LayoutGrid,
   MessageSquareText,
   ShieldAlert,
+  Shield,
   ShieldCheck,
   UserPlus,
   type LucideIcon,
@@ -49,7 +49,7 @@ import {
   participantRow,
   trainingRow,
 } from "@/components/register-rows";
-import { Card, EmptyState, IconBox, PersonRow, Skeleton, Text } from "@/components/ui";
+import { EmptyState, IconBox, PersonRow, Skeleton, Text } from "@/components/ui";
 import { colors, radius, shadow, spacing, topics, type TopicName } from "@/theme";
 
 /** How many task tiles show before More (two rows of three, More being the sixth). */
@@ -57,7 +57,18 @@ const FIRST = 5;
 /** Rows each Home tab shows before See all. */
 const NEWEST = 8;
 
-type Task = { label: string; icon: LucideIcon; topic: TopicName; go: () => void };
+/** `color` is the tile's own circle colour (15Beforeend); without it the topic colour is used. */
+type Task = { label: string; icon: LucideIcon; topic: TopicName; color?: string; go: () => void };
+
+/** The first five tiles' colours, as in the 15Beforeend design; More is sky. */
+const TILE = {
+  register: "#0051D5",
+  survey: "#F59E0B",
+  attendance: "#10B981",
+  concern: "#E11D48",
+  feedback: "#4F46E5",
+  more: "#0284C7",
+};
 type ListKey = "participants" | "enterprises" | "jobs" | "loans" | "feedback" | "concerns" | "attendance" | "workplan";
 
 const timeAgo = (ms: number) => {
@@ -73,16 +84,14 @@ export default function Home() {
   const { can, profile, user } = useAuth();
   const queued = useQueue();
   const [more, setMore] = useState(false);
-  const tabsRef = useRef<ScrollView>(null);
-  const [tabsAtEnd, setTabsAtEnd] = useState(false);
 
   // Every task the role may do, most used first; a role sees only its own.
   const tasks: Task[] = [
-    can("participants", "write") && { label: "Register", icon: UserPlus, topic: "participants", go: () => router.push("/participants/new") },
-    can("surveys") && { label: "Survey", icon: ClipboardList, topic: "surveys", go: () => router.navigate("/(tabs)/surveys") },
-    can("training", "write") && { label: "Attendance", icon: GraduationCap, topic: "trainings", go: () => router.push("/training") },
-    can("safeguarding", "write") && { label: "Concern", icon: ShieldAlert, topic: "safeguarding", go: () => router.push("/safeguarding/new") },
-    can("feedback", "write") && { label: "Feedback", icon: MessageSquareText, topic: "disability", go: () => router.push("/feedback/new") },
+    can("participants", "write") && { label: "Register", icon: UserPlus, topic: "participants", color: TILE.register, go: () => router.push("/participants/new") },
+    can("surveys") && { label: "Survey", icon: ClipboardList, topic: "surveys", color: TILE.survey, go: () => router.navigate("/(tabs)/surveys") },
+    can("training", "write") && { label: "Attendance", icon: GraduationCap, topic: "trainings", color: TILE.attendance, go: () => router.push("/training") },
+    can("safeguarding", "write") && { label: "Concern", icon: ShieldAlert, topic: "safeguarding", color: TILE.concern, go: () => router.push("/safeguarding/new") },
+    can("feedback", "write") && { label: "Feedback", icon: MessageSquareText, topic: "disability", color: TILE.feedback, go: () => router.push("/feedback/new") },
     can("monitoring", "write") && { label: "Work plan", icon: CalendarCheck, topic: "indicators", go: () => router.push("/activities") },
     can("employment") && { label: "Jobs", icon: BriefcaseBusiness, topic: "jobs", go: () => router.push("/employment") },
     can("finance") && { label: "Loans", icon: HandCoins, topic: "loans", go: () => router.push("/finance") },
@@ -94,7 +103,7 @@ export default function Home() {
   const first = folded ? tasks.slice(0, FIRST) : tasks;
   const rest = folded ? tasks.slice(FIRST) : [];
 
-  // The lists under the tiles, each only for those who may see it; the arrow scrolls to the rest.
+  // The lists under the tiles, each only for those who may see it.
   const lists = (
     [
       can("participants") && { key: "participants", label: "Participants" },
@@ -165,98 +174,83 @@ export default function Home() {
   return (
     <ScrollView
       contentContainerStyle={styles.container}
+      // The list tabs (child 1) stop under the top bar while the rows scroll under them.
+      stickyHeaderIndices={lists.length > 0 ? [1] : undefined}
       refreshControl={
         <RefreshControl refreshing={rows.isRefetching} onRefresh={() => void rows.refetch()} tintColor={colors.primary} />
       }
     >
-      {/* Greeting and sync, one line each */}
-      <Pressable accessibilityRole="button" onPress={() => router.push("/sync")} style={styles.hero}>
-        <Text style={styles.hello} numberOfLines={1}>
-          {greeting()} {displayName(profile, user?.email).split(" ")[0]}
-        </Text>
-        <View style={styles.syncLine}>
-          {queued.length > 0 ? (
-            <>
-              <CloudUpload size={14} color="#FCD34D" />
-              <Text style={styles.syncText}>
-                {queued.length} item{queued.length === 1 ? "" : "s"} waiting to upload
-              </Text>
-            </>
-          ) : (
-            <>
-              <CircleCheck size={14} color="#86EFAC" />
-              <Text style={styles.syncText}>
-                All data synced{rows.dataUpdatedAt ? ` · ${timeAgo(rows.dataUpdatedAt)}` : ""}
-              </Text>
-            </>
-          )}
-        </View>
-      </Pressable>
+      <View style={styles.top}>
+        {/* Greeting and sync, one line each */}
+        <Pressable accessibilityRole="button" onPress={() => router.push("/sync")} style={styles.hero}>
+          <View style={styles.heroTop}>
+            <Text style={styles.hello} numberOfLines={1}>
+              {greeting()} {displayName(profile, user?.email).split(" ")[0]}
+            </Text>
+            <Shield size={20} color={colors.onNavyMuted} />
+          </View>
+          <View style={styles.syncLine}>
+            {queued.length > 0 ? (
+              <>
+                <CloudUpload size={14} color="#FCD34D" />
+                <Text style={styles.syncText}>
+                  {queued.length} item{queued.length === 1 ? "" : "s"} waiting to upload
+                </Text>
+              </>
+            ) : (
+              <>
+                <CircleCheck size={14} color="#86EFAC" />
+                <Text style={styles.syncText}>
+                  All data synced{rows.dataUpdatedAt ? ` · ${timeAgo(rows.dataUpdatedAt)}` : ""}
+                </Text>
+              </>
+            )}
+          </View>
+        </Pressable>
 
-      <View style={styles.grid}>
-        {first.map((t) => (
-          <Tile key={t.label} task={t} />
-        ))}
-        {folded ? (
-          <Tile
-            task={{
-              label: more ? "Less" : "More",
-              icon: more ? ChevronUp : LayoutGrid,
-              topic: "participants",
-              go: () => setMore((m) => !m),
-            }}
-          />
-        ) : null}
-        {more ? rest.map((t) => <Tile key={t.label} task={t} />) : null}
+        <View style={styles.grid}>
+          {first.map((t) => (
+            <Tile key={t.label} task={t} />
+          ))}
+          {folded ? (
+            <Tile
+              task={{
+                label: more ? "Less" : "More",
+                icon: more ? ChevronUp : LayoutGrid,
+                topic: "participants",
+                color: TILE.more,
+                go: () => setMore((m) => !m),
+              }}
+            />
+          ) : null}
+          {more ? rest.map((t) => <Tile key={t.label} task={t} />) : null}
+        </View>
       </View>
 
       {lists.length > 0 ? (
-        <Card style={styles.listCard}>
-          <View style={styles.tabsRow}>
-            <ScrollView
-              ref={tabsRef}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.tabs}
-              scrollEventThrottle={64}
-              onScroll={(e) => {
-                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-                setTabsAtEnd(contentOffset.x + layoutMeasurement.width >= contentSize.width - 8);
-              }}
-            >
-              {lists.map((l) => {
-                const on = l.key === active;
-                return (
-                  <Pressable
-                    key={l.key}
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: on }}
-                    onPress={() => setTab(l.key)}
-                    style={[styles.tab, on && styles.tabOn]}
-                  >
-                    <Text style={[styles.tabText, on && styles.tabTextOn]}>{l.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {lists.length > 3 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={tabsAtEnd ? "Back to the first lists" : "More lists"}
-                onPress={() =>
-                  tabsAtEnd ? tabsRef.current?.scrollTo({ x: 0, animated: true }) : tabsRef.current?.scrollToEnd({ animated: true })
-                }
-                style={styles.arrow}
-              >
-                {tabsAtEnd ? (
-                  <ChevronLeft size={18} color={colors.secondary} />
-                ) : (
-                  <ChevronRight size={18} color={colors.secondary} />
-                )}
-              </Pressable>
-            ) : null}
-          </View>
+        <View style={styles.tabsRow}>
+          {/* No arrow: the tabs run to the edge, so a cut-off last tab shows there are more. */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+            {lists.map((l) => {
+              const on = l.key === active;
+              return (
+                <Pressable
+                  key={l.key}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => setTab(l.key)}
+                  style={[styles.tab, on && styles.tabOn]}
+                >
+                  <Text style={[styles.tabText, on && styles.tabTextOn]}>{l.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
 
+      {lists.length > 0 ? (
+        <View style={styles.listBody}>
           {rows.isLoading ? (
             <View style={styles.skeletons}>
               {Array.from({ length: 4 }, (_, i) => (
@@ -286,22 +280,22 @@ export default function Home() {
               ) : null}
             </>
           )}
-        </Card>
+        </View>
       ) : null}
     </ScrollView>
   );
 }
 
-/** A task tile like the web dashboard cards: solid icon circle, name, coloured bottom line. */
+/** A task tile: solid colour circle with a white icon, then the name (15Beforeend). */
 function Tile({ task }: { task: Task }) {
   const t = topics[task.topic];
   return (
     <Pressable
       accessibilityRole="button"
       onPress={task.go}
-      style={({ pressed }) => [styles.tile, { borderBottomColor: t.color }, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
-      <IconBox icon={task.icon} color={t.color} size={40} solid />
+      <IconBox icon={task.icon} color={task.color ?? t.color} size={48} solid />
       <Text style={styles.tileLabel} numberOfLines={1}>
         {task.label}
       </Text>
@@ -310,50 +304,66 @@ function Tile({ task }: { task: Task }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl * 2 },
+  container: { paddingBottom: spacing.xxl * 2 },
+  // Welcome box and tiles keep 16px sides; 1px under the top bar (15Beforeend follow-up).
+  top: { paddingHorizontal: spacing.lg, paddingTop: 1, paddingBottom: spacing.md, gap: spacing.md },
   hero: {
-    backgroundColor: colors.navy,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: 4,
+    backgroundColor: colors.heroNavy,
+    borderRadius: radius.md,
+    padding: spacing.lg + 4,
+    gap: spacing.sm,
+    overflow: "hidden",
   },
-  hello: { fontSize: 17, fontWeight: "700", color: colors.white, letterSpacing: -0.2 },
-  syncLine: { flexDirection: "row", alignItems: "center", gap: 6 },
-  syncText: { fontSize: 12, color: colors.onNavyMuted },
+  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  hello: { flex: 1, fontSize: 18, fontWeight: "600", color: colors.white, letterSpacing: -0.2 },
+  // The "All data synced" chip.
+  syncLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(0, 35, 111, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(144, 168, 255, 0.2)",
+  },
+  syncText: { fontSize: 11, fontWeight: "500", color: "#DCE9FF" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   pressed: { opacity: 0.85 },
   tile: {
     width: "31.8%",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: spacing.md,
+    justifyContent: "center",
+    gap: spacing.sm,
+    minHeight: 110,
+    padding: spacing.md,
     backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderBottomWidth: 3,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    // iOS shadow only: Android's elevation drew a square grey box behind some rounded tiles.
     ...shadow,
+    elevation: 0,
   },
-  tileLabel: { fontSize: 12, fontWeight: "600", color: colors.text },
-  listCard: { padding: 0, overflow: "hidden", marginTop: spacing.xs },
+  tileLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+  // The list runs edge to edge; its tab line is the sticky header.
+  listBody: { backgroundColor: colors.card },
   tabsRow: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: colors.card,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   tabs: { gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  tab: { paddingHorizontal: 12, minHeight: 34, borderRadius: 8, justifyContent: "center" },
-  tabOn: { backgroundColor: colors.primarySoft },
-  tabText: { fontSize: 15, fontWeight: "600", color: colors.muted },
-  tabTextOn: { color: colors.primaryDark },
-  arrow: {
-    width: 40,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: colors.border,
-  },
+  tab: { paddingHorizontal: 14, minHeight: 32, borderRadius: radius.pill, justifyContent: "center" },
+  tabOn: { backgroundColor: colors.primary },
+  tabText: { fontSize: 13, fontWeight: "500", color: colors.muted },
+  tabTextOn: { color: colors.white, fontWeight: "600" },
   skeletons: { padding: spacing.lg, gap: spacing.lg },
   skeletonRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   seeAll: {

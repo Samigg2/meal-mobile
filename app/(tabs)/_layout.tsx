@@ -7,21 +7,12 @@ import { AppHeader } from "@/components/app-header";
 import { StartScreen } from "@/components/brand-splash";
 import { colors, fontFamilies } from "@/theme";
 
-/** Tab icon; the active tab gets a small primary-tinted pill behind it. */
+/** Tab icon; the active tab is blue icon and label only, no pill (15Beforeend). */
 function tabIcon(Icon: LucideIcon) {
   return function TabIcon({ color, focused }: { color: ColorValue; focused: boolean }) {
     return (
-      <View
-        style={{
-          width: 52,
-          height: 30,
-          borderRadius: 15,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: focused ? colors.primarySoft : "transparent",
-        }}
-      >
-        <Icon size={22} color={String(color)} strokeWidth={focused ? 2.4 : 2} />
+      <View style={{ width: 52, height: 30, alignItems: "center", justifyContent: "center" }}>
+        <Icon size={22} color={String(color)} strokeWidth={focused ? 2.5 : 2} />
       </View>
     );
   };

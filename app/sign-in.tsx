@@ -39,7 +39,7 @@ export default function SignIn() {
     }
     setError(null);
     setLoading(true);
-    const result = await signIn(email.trim(), password);
+    const result = await signIn(email.trim(), password, keepSignedIn);
     setLoading(false);
     if (result.error) setError(result.error);
   }

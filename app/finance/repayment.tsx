@@ -6,10 +6,16 @@ import { todayISO } from "@/lib/participant-form";
 import { errorsFrom, makeRef, numberOf, saveOrQueue, useLiveErrors, useQueuedPayload, type Errors } from "@/lib/field-form";
 import { FormCard, FormScreen, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
-import { Field, Loading } from "@/components/ui";
+import { Button, ErrorText, Field, Loading, Text } from "@/components/ui";
+import { Camera, ImageUp, Trash2 } from "lucide-react-native";
+import { pickPhoto, type WaitingPhoto } from "@/lib/photos";
 
 /** A repayment waits with what it repays, for the Sync screen and to open it again. */
-type QueuedRepayment = RepaymentInput & { _loan?: string };
+type QueuedRepayment = RepaymentInput & {
+  _loan?: string;
+  /** The receipt photo, sent once the repayment is saved (queue.ts sendQueued). */
+  _photos?: Omit<WaitingPhoto, "recordId">[];
+};
 
 /**
  * Money paid back on a loan, with its receipt. It waits for someone else to
@@ -49,6 +55,19 @@ function RepaymentForm({
   const [reference, setReference] = useState(initial?.reference ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [clientRef] = useState(() => initial?.client_ref ?? makeRef());
+  // Optional here: the receipt is needed before someone verifies the repayment (12Beforeend).
+  const [receipt, setReceipt] = useState<{ data: string; mime: string } | null>(initial?._photos?.[0] ?? null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function takeReceipt(from: "camera" | "library") {
+    setPhotoError(null);
+    const picked = await pickPhoto(from);
+    if (picked === "denied") {
+      setPhotoError(from === "camera" ? "Allow the camera to take the photo." : "Allow access to photos to choose one.");
+      return;
+    }
+    if (picked) setReceipt(picked);
+  }
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<"sent" | "queued" | null>(null);
 
@@ -82,6 +101,7 @@ function RepaymentForm({
       notes: notes.trim() || undefined,
       client_ref: clientRef,
       _loan: loanLabel || undefined,
+      _photos: receipt ? [{ module: "finance", document_type: "repayment_receipt", ...receipt }] : undefined,
     };
     setSaving(true);
     try {
@@ -111,6 +131,20 @@ function RepaymentForm({
         <Field label="Payment method" required value={channel} onChangeText={setChannel} onBlur={() => live.touch("channel")} hint="Cash, bank, mobile money…" error={errors.channel} />
         <Field label="Reference" required value={reference} onChangeText={setReference} onBlur={() => live.touch("reference")} error={errors.reference} />
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={1000} />
+      </FormCard>
+      <FormCard title="Receipt" hint="Needed before someone verifies it. With no connection it waits on this phone, encrypted.">
+        <ErrorText>{photoError}</ErrorText>
+        {receipt ? (
+          <>
+            <Text>Receipt photo added.</Text>
+            <Button title="Remove photo" icon={Trash2} variant="outline" onPress={() => setReceipt(null)} />
+          </>
+        ) : (
+          <>
+            <Button title="Take photo" icon={Camera} variant="outline" onPress={() => void takeReceipt("camera")} />
+            <Button title="Choose photo" icon={ImageUp} variant="outline" onPress={() => void takeReceipt("library")} />
+          </>
+        )}
       </FormCard>
     </FormScreen>
   );

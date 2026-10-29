@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useRegionChoices } from "@/lib/region-lock";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -157,6 +158,10 @@ function EditForm({
   const disability = useLookupOptions("participants.disability_type");
   const settings = useSettings();
   const youthBand = `${settings.youth_min_age}–${settings.youth_max_age}`;
+  const regionChoices = useRegionChoices(form.region);
+  // A cluster's own region is filled in for it, as on the web (set while
+  // rendering, React's way to adjust state from what was just read).
+  if (regionChoices.locked && !form.region) setForm((p) => (p.region ? p : { ...p, region: regionChoices.locked! }));
   const zones = locations.zonesOf(form.region);
   const woredas = locations.woredasOf(form.zone);
   // Woreda coverage in reference data is partial, so "Other" lets a woreda that
@@ -383,7 +388,7 @@ function EditForm({
             label="Region"
             required
             value={form.region}
-            options={locations.regions}
+            options={regionChoices.regions}
             onChange={(v) => {
               setForm((p) => ({ ...p, region: v, zone: "", woreda: "", woreda_other: "" }));
               checkField("region", { ...form, region: v, zone: "", woreda: "", woreda_other: "" });
