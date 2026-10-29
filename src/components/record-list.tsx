@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { Page } from "@/lib/data";
@@ -75,7 +75,11 @@ export function RecordList<T>({
   // Offline: pages of the saved copy, searched and filtered in SQLite.
   const local = useLocalPages(copy, { term, where: current?.where }, PAGE_SIZE, showSaved);
   const pages = showSaved ? local : { data, hasNextPage, isFetchingNextPage, fetchNextPage };
-  const rows = (pages.data?.pages.flatMap((p) => p.rows) ?? []).map(toRow);
+  // Built once per page load, not on every keystroke, so the memoised rows stay as they are.
+  // Built once per page load, not on every render, so the memoised rows stay as they are.
+  // toRow is a new (but pure) function on every render of the screen, so it is left out of the deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => (pages.data?.pages.flatMap((p) => p.rows) ?? []).map(toRow), [pages.data]);
   const total = pages.data?.pages[0]?.total ?? rows.length;
   const capped = showSaved && !!local.data?.pages[0]?.capped;
   const t = topics[topic];
@@ -141,6 +145,10 @@ export function RecordList<T>({
             />
           }
           renderItem={({ item, index }) => <PersonRow {...item} last={index === rows.length - 1} />}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews
         />
       )}
     </View>

@@ -31,6 +31,8 @@ const PAGE = 500;
 const TOTAL_CAP = 1000;
 const REFRESH_MINUTES = 30;
 const FULL_HOURS = 24;
+/** More changed rows than this: download everything again, the change path is for a few rows. */
+const MANY_CHANGES = 2000;
 
 /**
  * A filter on the saved rows, the offline twin of a chip's server query:
@@ -72,6 +74,18 @@ export interface ListCopy<T> {
 const FIELD = /^[a-z_][a-z0-9_]*$/;
 /** A download per register at a time: a second one would remove the rows the first just wrote. */
 const running = new Map<string, Promise<void>>();
+/**
+ * The registers download one after another, never together: they share one
+ * database connection, and expo-sqlite's transactions are not exclusive, so two
+ * at once ended each other's transaction ("cannot rollback - no transaction is
+ * active", 2026-10-29).
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function oneAtATime<R>(work: () => Promise<R>): Promise<R> {
+  const job = queue.then(work, work);
+  queue = job.catch(() => undefined);
+  return job;
+}
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** The server's deleted ids since a moment (`/…/deleted`); `complete` false: ask again from `until`. */
@@ -79,6 +93,8 @@ export type DeletedSince = { ids: string[]; until: string | null; complete: bool
 
 /** No connection: the download stops and the copy stays as it was. */
 class Offline extends Error {}
+/** Too much changed for the change path (a fresh import, a long time offline). */
+class TooMany extends Error {}
 
 async function online<R>(load: () => Promise<R>): Promise<R> {
   try {
@@ -146,6 +162,7 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
     for (let offset = 0; ; offset += PAGE) {
       const page = await online(() => fetchPage({ limit: PAGE, offset, updated_since: since }));
       fresh.push(...page.rows.map(slim));
+      if (fresh.length > MANY_CHANGES) throw new TooMany();
       if (!page.hasMore || page.rows.length === 0) break;
     }
     const gone: string[] = [];
@@ -191,7 +208,14 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
     const fullDue = !since || !lastFull || Date.now() - new Date(lastFull).getTime() > FULL_HOURS * 3_600_000;
     try {
       if (full || fullDue || !since) await timed(`full download ${name}`, downloadAll);
-      else await timed(`changes ${name}`, () => downloadChanges(since));
+      else {
+        try {
+          await timed(`changes ${name}`, () => downloadChanges(since));
+        } catch (error) {
+          if (!(error instanceof TooMany)) throw error;
+          await timed(`full download ${name}`, downloadAll);
+        }
+      }
     } catch (error) {
       if (error instanceof Offline) return; // keep the old copy
       throw error;
@@ -204,7 +228,7 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
     download: (opts) => {
       const busy = running.get(name);
       if (busy) return busy;
-      const job = bringUpToDate(!!opts?.full).finally(() => running.delete(name));
+      const job = oneAtATime(() => bringUpToDate(!!opts?.full)).finally(() => running.delete(name));
       running.set(name, job);
       return job;
     },

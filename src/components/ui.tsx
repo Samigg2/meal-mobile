@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -709,7 +709,7 @@ export function ListRow({
  * A chat-style list row: round avatar with initials, bold name, grey line under it,
  * date and status on the right, a thin line under the text (not under the avatar).
  */
-export function PersonRow({
+function PersonRowView({
   initials,
   icon: Icon,
   color = colors.primary,
@@ -1185,3 +1185,6 @@ const styles = StyleSheet.create({
   loading: { padding: spacing.xxl, alignItems: "center", gap: spacing.sm },
   loadingText: { color: colors.muted, fontSize: 13 },
 });
+
+/** Memoised: a long list redraws only the rows that changed (100,000 saved people, 2026-10-29). */
+export const PersonRow = memo(PersonRowView);
