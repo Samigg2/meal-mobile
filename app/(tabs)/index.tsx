@@ -359,8 +359,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  tabs: { gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  tab: { paddingHorizontal: 14, minHeight: 32, borderRadius: radius.pill, justifyContent: "center" },
+  // 16px, so the first tab lines up with the welcome box, the tiles and the row icons.
+  tabs: { gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  // A softer corner than a full pill, so its left end sits on the same line as the tiles.
+  tab: { paddingHorizontal: 14, minHeight: 32, borderRadius: 10, justifyContent: "center" },
   tabOn: { backgroundColor: colors.primary },
   tabText: { fontSize: 13, fontWeight: "500", color: colors.muted },
   tabTextOn: { color: colors.white, fontWeight: "600" },

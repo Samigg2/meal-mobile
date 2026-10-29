@@ -45,8 +45,9 @@ export function participantRow(p: ParticipantRow, open?: () => void): Row {
     id: p.id,
     initials: initialsOf(p.full_name),
     icon: UserRound,
-    color: colors.primary,
-    tint: colors.primarySoft,
+    // Teal, as the employment rows (user, 2026-10-29).
+    color: topics.jobs.color,
+    tint: topics.jobs.tint,
     title: p.full_name,
     meta: [p.participant_id, p.woreda].filter(Boolean).join(" · "),
     date: shortDate(p.created_at),
