@@ -13,6 +13,8 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "@/lib/auth";
 import { useAutoSync } from "@/lib/auto-sync";
+// Defines the background send task at start-up, as the task manager requires.
+import "@/lib/background-sync";
 import { StartScreen } from "@/components/brand-splash";
 import { colors, fontFamilies } from "@/theme";
 

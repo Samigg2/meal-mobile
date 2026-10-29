@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./auth";
 import { isSyncing, queueSize, subscribe, syncQueue } from "./queue";
+import { startBackgroundSync, stopBackgroundSync } from "./background-sync";
 
 /** While the app is open and something waits, try again this often. */
 const EVERY_MS = 2 * 60 * 1000;
@@ -14,11 +15,18 @@ const AFTER_SAVE_MS = 5 * 1000;
  * screen: shortly after something is queued, whenever the app comes back to the
  * front, and every two minutes while it is open with items waiting. With no
  * connection an attempt changes nothing (items stay "Still offline"), and only
- * one sync runs at a time (syncQueue). Nothing runs while the app is closed.
+ * one sync runs at a time (syncQueue). While the app is closed the phone's own
+ * background task sends it (background-sync.ts), registered here while someone
+ * is signed in.
  */
 export function useAutoSync() {
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!ready) return;
+    void (user ? startBackgroundSync() : stopBackgroundSync());
+  }, [ready, user]);
 
   useEffect(() => {
     if (!user) return;
