@@ -26,7 +26,15 @@ import { timed } from "./timing";
  * online and the copy is older than REFRESH_MINUTES, and by "Download for offline".
  */
 
+/** Rows per page of a change refresh (a few rows). */
 const PAGE = 500;
+/**
+ * Rows per page of a full download, fetched by "start after the last row"
+ * (`before`), so the server finds every page as fast as the first (2026-10-29).
+ */
+const DOWNLOAD_PAGE = 2000;
+/** Rows per INSERT: one call over the native bridge per 100 rows, not per row. */
+const INSERT_ROWS = 100;
 /** Offline counts stop here ("1,000+"): counting every match of 100,000 rows is the slow part. */
 const TOTAL_CAP = 1000;
 const REFRESH_MINUTES = 30;
@@ -63,6 +71,8 @@ export interface LocalPage<T> {
 export interface ListCopy<T> {
   /** Where the copy is kept. */
   key: string;
+  /** How many rows the server holds for this person, for the download's percentage; null offline. */
+  count: () => Promise<number | null>;
   /** Brings the copy up to date (what changed, or everything once a day); offline it quietly keeps the old copy. */
   download: (opts?: { full?: boolean }) => Promise<void>;
   /** When the copy was last completed, or null when there is none. */
@@ -88,6 +98,16 @@ function oneAtATime<R>(work: () => Promise<R>): Promise<R> {
 }
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
+/** How far a download has come: rows saved so far; `finished` once the register is done. */
+export type DownloadProgress = { name: string; done: number; finished?: boolean };
+const watchers = new Set<(p: DownloadProgress) => void>();
+/** Hears every register's progress (the Sync screen's percentage); returns the unsubscribe. */
+export function onDownloadProgress(watch: (p: DownloadProgress) => void): () => void {
+  watchers.add(watch);
+  return () => watchers.delete(watch);
+}
+const tell = (p: DownloadProgress) => watchers.forEach((w) => w(p));
+
 /** The server's deleted ids since a moment (`/…/deleted`); `complete` false: ask again from `until`. */
 export type DeletedSince = { ids: string[]; until: string | null; complete: boolean };
 
@@ -110,7 +130,14 @@ const later = (a: string | null, b?: string | null) => (b && (!a || b > a) ? b :
 
 export function listCopy<T extends { id: string; updated_at?: string | null }>(
   name: string,
-  fetchPage: (q: { limit: number; offset: number; updated_since?: string }) => Promise<{ rows: T[]; hasMore: boolean }>,
+  fetchPage: (q: {
+    limit: number;
+    offset: number;
+    updated_since?: string;
+    /** The id of the last row of the previous page (full download). */
+    before?: string;
+    withTotal?: boolean;
+  }) => Promise<{ rows: T[]; hasMore: boolean; total?: number | null }>,
   slim: (row: T) => T,
   /** The words a search looks in. */
   searchText: (row: T) => string,
@@ -127,28 +154,38 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
   const setMeta = async (k: string, v: string) =>
     (await db()).runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [k, v]);
 
-  /** Everything again; rows of this download carry `gen`, what the server no longer sends is removed at the end. */
+  /**
+   * Everything again; rows of this download carry `gen`, what the server no
+   * longer sends is removed at the end. The next page is already on its way
+   * while this one is saved.
+   */
   async function downloadAll() {
     const database = await db();
     const gen = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     let pos = 0;
     let changed: string | null = null;
-    for (let offset = 0; ; offset += PAGE) {
-      const page = await online(() => fetchPage({ limit: PAGE, offset }));
+    const ask = (before?: string) => online(() => fetchPage({ limit: DOWNLOAD_PAGE, offset: 0, before }));
+    let next: Promise<{ rows: T[]; hasMore: boolean }> | null = ask();
+    while (next) {
+      const page: { rows: T[]; hasMore: boolean } = await next;
+      const last = page.rows[page.rows.length - 1];
+      next = page.hasMore && last ? ask(last.id) : null;
+      // Not left unhandled while this page is saved; its error comes out at the `await` above.
+      next?.catch(() => undefined);
+      const rows = page.rows.map(slim);
+      for (const row of rows) changed = later(changed, row.updated_at);
       await database.withTransactionAsync(async () => {
-        const insert = await database.prepareAsync(
-          "INSERT OR REPLACE INTO register_rows (register, id, pos, search, data, gen) VALUES (?, ?, ?, ?, ?, ?)",
-        );
-        try {
-          for (const row of page.rows.map(slim)) {
-            changed = later(changed, row.updated_at);
-            await insert.executeAsync([name, row.id, pos++, searchText(row).toLowerCase(), JSON.stringify(row), gen]);
-          }
-        } finally {
-          await insert.finalizeAsync();
+        for (let i = 0; i < rows.length; i += INSERT_ROWS) {
+          const chunk = rows.slice(i, i + INSERT_ROWS);
+          const values: (string | number)[] = [];
+          for (const row of chunk) values.push(name, row.id, pos++, searchText(row).toLowerCase(), JSON.stringify(row), gen);
+          await database.runAsync(
+            `INSERT OR REPLACE INTO register_rows (register, id, pos, search, data, gen) VALUES ${chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}`,
+            values,
+          );
         }
       });
-      if (!page.hasMore || page.rows.length === 0) break;
+      tell({ name, done: pos });
     }
     await database.runAsync("DELETE FROM register_rows WHERE register = ? AND gen <> ?", [name, gen]);
     if (changed) await setMeta(changedKey, changed);
@@ -221,10 +258,18 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
       throw error;
     }
     await setMeta(savedKey, new Date().toISOString());
+    tell({ name, done: 0, finished: true });
   }
 
   return {
     key,
+    count: async () => {
+      try {
+        return (await fetchPage({ limit: 1, offset: 0, withTotal: true })).total ?? null;
+      } catch {
+        return null;
+      }
+    },
     download: (opts) => {
       const busy = running.get(name);
       if (busy) return busy;

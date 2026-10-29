@@ -1,6 +1,6 @@
 import { api, ApiError } from "./api";
 import { cachedFetch, cachedFetchStamped } from "./offline-cache";
-import { listCopy, type DeletedSince, type ListCopy } from "./offline-lists";
+import { listCopy, onDownloadProgress, type DeletedSince, type ListCopy } from "./offline-lists";
 import { timed } from "./timing";
 import { fetchLookups, fetchSettings } from "./reference";
 import type { PermissionModule } from "./permissions";
@@ -291,6 +291,8 @@ export const listParticipantsPage = (
     withTotal?: boolean;
     /** Only rows changed at or after this moment (the offline copy's refresh). */
     updated_since?: string;
+    /** The id of the last row already downloaded (the offline copy's full download). */
+    before?: string;
   } = {},
 ) => api.get<ParticipantPage>("/participants/page", q);
 
@@ -482,6 +484,8 @@ export const getSurvey = (id: string) =>
  */
 export async function downloadForOffline(
   can: (module: PermissionModule, action?: "read" | "write") => boolean,
+  /** 0-100 while the registers download (the bulk of the time), for the Sync screen. */
+  onPercent?: (percent: number) => void,
 ): Promise<{
   surveys: number;
   trainings: number;
@@ -501,10 +505,29 @@ export async function downloadForOffline(
   if (can("finance", "write")) await listProviders();
   if (can("monitoring", "write")) await listActivities();
   // The complete registers of the person's organization, for lists and search with no connection.
-  if (can("participants")) await participantsCopy.download();
-  if (can("enterprises")) await enterprisesCopy.download();
-  if (can("employment")) await placementsCopy.download();
-  if (can("finance")) await loansCopy.download();
+  const copies: ListCopy<{ id: string }>[] = [];
+  if (can("participants")) copies.push(participantsCopy);
+  if (can("enterprises")) copies.push(enterprisesCopy);
+  if (can("employment")) copies.push(placementsCopy);
+  if (can("finance")) copies.push(loansCopy);
+  // One overall percentage: rows saved of all the rows the registers hold.
+  const totals = new Map<string, number>();
+  await Promise.all(copies.map(async (c) => totals.set(c.key, (await c.count()) ?? 0)));
+  const all = [...totals.values()].reduce((a, b) => a + b, 0);
+  const done = new Map<string, number>();
+  const stop = onDownloadProgress((p) => {
+    const key = `list:${p.name}`;
+    const total = totals.get(key) ?? 0;
+    done.set(key, p.finished ? total : Math.min(p.done, total));
+    const sum = [...done.values()].reduce((a, b) => a + b, 0);
+    onPercent?.(all > 0 ? Math.min(99, Math.floor((sum / all) * 100)) : 0);
+  });
+  try {
+    for (const copy of copies) await copy.download();
+  } finally {
+    stop();
+  }
+  onPercent?.(100);
   return { surveys: active.length, trainings: trainings.length };
 }
 

@@ -20,6 +20,7 @@ export default function Sync() {
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [percent, setPercent] = useState(0);
   const [offlineStatus, setOfflineStatus] = useState<string | null>(null);
   const [lastDownload, setLastDownload] = useState<string | null>(null);
 
@@ -29,9 +30,10 @@ export default function Sync() {
 
   async function handleDownload() {
     setDownloading(true);
+    setPercent(0);
     setOfflineStatus(null);
     try {
-      const { surveys, trainings } = await downloadForOffline(can);
+      const { surveys, trainings } = await downloadForOffline(can, setPercent);
       setOfflineStatus(
         `Reference lists, ${surveys} active survey form${surveys === 1 ? "" : "s"} and ${trainings} training${trainings === 1 ? "" : "s"} near today are on this device.`,
       );
@@ -95,7 +97,12 @@ export default function Sync() {
             </Text>
           </View>
         </View>
-        <Button title="Download for offline" variant="outline" onPress={handleDownload} loading={downloading} />
+        <Button
+          title={downloading ? `Downloading ${percent}%` : "Download for offline"}
+          variant="outline"
+          onPress={handleDownload}
+          disabled={downloading}
+        />
         {offlineStatus ? <Text style={styles.meta}>{offlineStatus}</Text> : null}
       </Card>
 
