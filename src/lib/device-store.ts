@@ -20,6 +20,8 @@ import { secureStorage } from "./storage";
  *   register_rows  one row per participant, enterprise, job or loan of the
  *                  person's own organization, for lists and search with no
  *                  connection (offline-lists.ts).
+ *   photos         document photos waiting to upload, one row each (photos.ts); the
+ *                  queue holds only their id.
  *   meta           small markers: when each register was saved, one-time moves.
  *
  * Expo Go has no SQLCipher, so there the file is plain: registers are then kept
@@ -74,6 +76,11 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
           PRIMARY KEY (register, id)
         );
         CREATE INDEX IF NOT EXISTS register_rows_pos ON register_rows (register, pos);
+        CREATE TABLE IF NOT EXISTS photos (
+          id          TEXT PRIMARY KEY NOT NULL,
+          data        TEXT NOT NULL,
+          created_at  TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS meta (
           key    TEXT PRIMARY KEY NOT NULL,
           value  TEXT NOT NULL
@@ -97,6 +104,12 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
 export async function keepsRegisters(): Promise<boolean> {
   await db();
   return encrypted || __DEV__;
+}
+
+/** Whether SQLCipher encrypts the database file (not in Expo Go). */
+export async function isEncrypted(): Promise<boolean> {
+  await db();
+  return encrypted;
 }
 
 /* ------------------------------ encryption ------------------------------ */

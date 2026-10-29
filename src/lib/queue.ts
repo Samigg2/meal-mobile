@@ -1,6 +1,6 @@
 import { api, ApiError, getSessionUser } from "./api";
 import { db, open, seal } from "./device-store";
-import { uploadPhoto, type WaitingPhoto } from "./photos";
+import { dropUnusedPhotos, uploadPhoto, type WaitingPhoto } from "./photos";
 
 /**
  * Offline-first capture queue for field data collection.
@@ -283,7 +283,19 @@ export async function removeFromQueue(id: string): Promise<void> {
 
 export async function clearQueue(): Promise<void> {
   await (await db()).runAsync("DELETE FROM queue");
+  await dropUnusedPhotos(new Set(), true);
   notify();
+}
+
+/** The kept photos the waiting items still need: a photo's own id, or a form's `_photos`. */
+function photosInUse(items: QueuedItem[]): Set<string> {
+  const ids = new Set<string>();
+  for (const item of items) {
+    const p = item.payload as { photoId?: string; _photos?: { photoId?: string }[] } | null;
+    if (p?.photoId) ids.add(p.photoId);
+    for (const photo of p?._photos ?? []) if (photo.photoId) ids.add(photo.photoId);
+  }
+  return ids;
 }
 
 /** A lost connection is not a failed attempt: only a refusal counts. */
@@ -339,6 +351,8 @@ async function replay(): Promise<{ synced: number; failed: number }> {
       if (message === STILL_OFFLINE) break;
     }
   }
+  // Photos left by a discarded item or a form closed without saving.
+  await dropUnusedPhotos(photosInUse(await readQueue()));
   return { synced, failed };
 }
 

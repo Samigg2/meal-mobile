@@ -8,7 +8,7 @@ import { FormCard, FormScreen, SavedNotice } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
 import { Button, ErrorText, Field, Loading, Text } from "@/components/ui";
 import { Camera, ImageUp, Trash2 } from "lucide-react-native";
-import { pickPhoto, type WaitingPhoto } from "@/lib/photos";
+import { pickPhoto, type KeptPhoto, type WaitingPhoto } from "@/lib/photos";
 
 /** A repayment waits with what it repays, for the Sync screen and to open it again. */
 type QueuedRepayment = RepaymentInput & {
@@ -56,7 +56,7 @@ function RepaymentForm({
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [clientRef] = useState(() => initial?.client_ref ?? makeRef());
   // Optional here: the receipt is needed before someone verifies the repayment (12Beforeend).
-  const [receipt, setReceipt] = useState<{ data: string; mime: string } | null>(initial?._photos?.[0] ?? null);
+  const [receipt, setReceipt] = useState<KeptPhoto | null>(initial?._photos?.[0] ?? null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   async function takeReceipt(from: "camera" | "library") {
