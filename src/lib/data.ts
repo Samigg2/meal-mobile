@@ -1,6 +1,6 @@
 import { api, ApiError } from "./api";
 import { cachedFetch, cachedFetchStamped } from "./offline-cache";
-import { listCopy, type ListCopy } from "./offline-lists";
+import { listCopy, type DeletedSince, type ListCopy } from "./offline-lists";
 import { fetchLookups, fetchSettings } from "./reference";
 import type { PermissionModule } from "./permissions";
 import type { PillTone } from "@/theme";
@@ -123,7 +123,10 @@ export const enterprisesCopy = listCopy<EnterpriseRow>("enterprises", listEnterp
   woreda: e.woreda,
   review_status: e.review_status,
   created_at: e.created_at,
-}) as EnterpriseRow, (e) => `${e.enterprise_name} ${e.owner_name ?? ""} ${e.woreda ?? ""}`);
+  updated_at: e.updated_at,
+}) as EnterpriseRow, (e) => `${e.enterprise_name} ${e.owner_name ?? ""} ${e.woreda ?? ""}`, (since) =>
+  api.get<DeletedSince>("/enterprises/deleted", { since }),
+);
 
 /** One enterprise; kept encrypted once opened, so it opens again with no connection. */
 export const getEnterprise = (id: string) =>
@@ -159,7 +162,10 @@ export const placementsCopy = listCopy<PlacementListRow>("placements", listPlace
   start_date: j.start_date,
   verified_on: j.verified_on,
   status: j.status,
-}) as PlacementListRow, (j) => `${j.participant_name} ${j.employer_name ?? ""} ${j.job_title ?? ""}`);
+  updated_at: j.updated_at,
+}) as PlacementListRow, (j) => `${j.participant_name} ${j.employer_name ?? ""} ${j.job_title ?? ""}`, (since) =>
+  api.get<DeletedSince>("/employment/placements/deleted", { since }),
+);
 
 export type LoanListRow = LoanApplicationRow & {
   borrower: string;
@@ -183,7 +189,10 @@ export const loansCopy = listCopy<LoanListRow>("loans", listLoansPage, (l) => ({
   currency: l.currency,
   application_date: l.application_date,
   status: l.status,
-}) as LoanListRow, (l) => `${l.borrower} ${l.provider_name ?? ""}`);
+  updated_at: l.updated_at,
+}) as LoanListRow, (l) => `${l.borrower} ${l.provider_name ?? ""}`, (since) =>
+  api.get<DeletedSince>("/finance/loans/deleted", { since }),
+);
 
 /** Newest-first pages for the Home tabs (no copy kept offline). */
 export const listFeedbackPage = (q: PageQuery) => api.get<Page<FeedbackRow>>("/feedback/page", q);
@@ -279,6 +288,8 @@ export const listParticipantsPage = (
     limit?: number;
     offset?: number;
     withTotal?: boolean;
+    /** Only rows changed at or after this moment (the offline copy's refresh). */
+    updated_since?: string;
   } = {},
 ) => api.get<ParticipantPage>("/participants/page", q);
 
@@ -300,7 +311,10 @@ export const participantsCopy = listCopy<ParticipantRow>("participants", (q) => 
   consent_given: p.consent_given,
   is_youth: p.is_youth,
   disability: p.disability,
-}) as ParticipantRow, (p) => `${p.full_name} ${p.participant_id} ${p.phone ?? ""}`);
+  updated_at: p.updated_at,
+}) as ParticipantRow, (p) => `${p.full_name} ${p.participant_id} ${p.phone ?? ""}`, (since) =>
+  api.get<DeletedSince>("/participants/deleted", { since }),
+);
 
 /** The newest rows of a register for Home; offline, the first of its saved copy (servers list newest first). */
 export async function newestOf<T>(
