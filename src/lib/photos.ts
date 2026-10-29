@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "./api";
 import { db, isEncrypted, open, seal } from "./device-store";
+import { timed } from "./timing";
 
 /**
  * A document photo that waits on the phone (12Beforeend). Since 2026-10-29 the
@@ -67,7 +68,8 @@ export async function pickPhoto(from: "camera" | "library"): Promise<KeptPhoto |
   if (!asset) return null;
   const data =
     asset.base64 ?? (await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 }));
-  return { photoId: await keep(data), mime: asset.mimeType ?? "image/jpeg" };
+  const photoId = await timed("keep photo", () => keep(data), () => `${Math.round(data.length / 1024)} KB as text`);
+  return { photoId, mime: asset.mimeType ?? "image/jpeg" };
 }
 
 /**

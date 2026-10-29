@@ -1,6 +1,7 @@
 import { api, ApiError } from "./api";
 import { cachedFetch, cachedFetchStamped } from "./offline-cache";
 import { listCopy, type DeletedSince, type ListCopy } from "./offline-lists";
+import { timed } from "./timing";
 import { fetchLookups, fetchSettings } from "./reference";
 import type { PermissionModule } from "./permissions";
 import type { PillTone } from "@/theme";
@@ -339,7 +340,11 @@ export async function newestOf<T>(
  * person never opened is built from the saved registers (`fromCopy`): the same
  * name, enterprise, jobs and loans, without training history.
  */
-export async function getParticipantDetail(id: string): Promise<ParticipantDetail> {
+export function getParticipantDetail(id: string): Promise<ParticipantDetail> {
+  return timed("open participant", () => loadParticipantDetail(id), (d) => (d.fromCopy ? "from the saved lists" : "server or opened copy"));
+}
+
+async function loadParticipantDetail(id: string): Promise<ParticipantDetail> {
   try {
     return await cachedFetch(`participant:${id}`, () => fetchParticipantDetail(id), { secret: true });
   } catch (error) {

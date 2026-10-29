@@ -1,6 +1,7 @@
 import { api, ApiError, getSessionUser } from "./api";
 import { db, open, seal } from "./device-store";
 import { dropUnusedPhotos, uploadPhoto, type WaitingPhoto } from "./photos";
+import { timed } from "./timing";
 
 /**
  * Offline-first capture queue for field data collection.
@@ -322,7 +323,7 @@ export const isSyncing = () => syncing !== null;
  */
 export function syncQueue(): Promise<{ synced: number; failed: number }> {
   if (!syncing) {
-    syncing = replay().finally(() => {
+    syncing = timed("sync", replay, (r) => `${r.synced} sent, ${r.failed} not`).finally(() => {
       syncing = null;
     });
   }

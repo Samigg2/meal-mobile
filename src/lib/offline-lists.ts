@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "./api";
 import { db, keepsRegisters } from "./device-store";
+import { timed } from "./timing";
 
 /*
  * The registers a field officer must be able to open with no connection
@@ -189,8 +190,8 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
     const [since, lastFull] = await Promise.all([getMeta(changedKey), getMeta(fullKey)]);
     const fullDue = !since || !lastFull || Date.now() - new Date(lastFull).getTime() > FULL_HOURS * 3_600_000;
     try {
-      if (full || fullDue || !since) await downloadAll();
-      else await downloadChanges(since);
+      if (full || fullDue || !since) await timed(`full download ${name}`, downloadAll);
+      else await timed(`changes ${name}`, () => downloadChanges(since));
     } catch (error) {
       if (error instanceof Offline) return; // keep the old copy
       throw error;
@@ -215,51 +216,58 @@ export function listCopy<T extends { id: string; updated_at?: string | null }>(
         return null;
       }
     },
-    query: async ({ term, where, limit, offset = 0, withTotal }) => {
-      if (where === false) return { rows: [], total: withTotal ? 0 : null, hasMore: false, offset, limit };
-      const parts = ["register = ?"];
-      const params: (string | number)[] = [name];
-      const words = term?.trim().toLowerCase();
-      if (words) {
-        parts.push("search LIKE ? ESCAPE '\\'");
-        params.push(`%${escapeLike(words)}%`);
-      }
-      for (const [field, want] of Object.entries(where ?? {})) {
-        if (!FIELD.test(field)) throw new Error(`Not a field: ${field}`);
-        // The record's id is its own column (the key), so that lookup needs no JSON.
-        const value = field === "id" ? "id" : `json_extract(data, '$.${field}')`;
-        if (want === true) parts.push(`COALESCE(${value}, 0) NOT IN (0, '')`);
-        else if (want === false) parts.push(`COALESCE(${value}, 0) IN (0, '')`);
-        else {
-          parts.push(`${value} = ?`);
-          params.push(want);
-        }
-      }
-      const filter = parts.join(" AND ");
-      const database = await db();
-      // One extra row says whether there is a next page.
-      const found = await database.getAllAsync<{ data: string }>(
-        `SELECT data FROM register_rows WHERE ${filter} ORDER BY pos LIMIT ? OFFSET ?`,
-        [...params, limit + 1, offset],
-      );
-      const counted = withTotal
-        ? ((
-            await database.getFirstAsync<{ n: number }>(
-              `SELECT count(*) AS n FROM (SELECT 1 FROM register_rows WHERE ${filter} LIMIT ${TOTAL_CAP + 1})`,
-              params,
-            )
-          )?.n ?? 0)
-        : null;
-      return {
-        rows: found.slice(0, limit).map((r) => JSON.parse(r.data) as T),
-        total: counted === null ? null : Math.min(counted, TOTAL_CAP),
-        capped: counted !== null && counted > TOTAL_CAP,
-        hasMore: found.length > limit,
-        offset,
-        limit,
-      };
-    },
+    query: (q) =>
+      timed(
+        `${q.term ? "search" : q.where ? "filter" : "page"} ${name}`,
+        () => query(q),
+        (r) => `${r.rows.length} rows${r.total !== null ? `, ${r.total}${r.capped ? "+" : ""} found` : ""}`,
+      ),
   };
+
+  async function query({ term, where, limit, offset = 0, withTotal }: LocalQuery): Promise<LocalPage<T>> {
+    if (where === false) return { rows: [], total: withTotal ? 0 : null, hasMore: false, offset, limit };
+    const parts = ["register = ?"];
+    const params: (string | number)[] = [name];
+    const words = term?.trim().toLowerCase();
+    if (words) {
+      parts.push("search LIKE ? ESCAPE '\\'");
+      params.push(`%${escapeLike(words)}%`);
+    }
+    for (const [field, want] of Object.entries(where ?? {})) {
+      if (!FIELD.test(field)) throw new Error(`Not a field: ${field}`);
+      // The record's id is its own column (the key), so that lookup needs no JSON.
+      const value = field === "id" ? "id" : `json_extract(data, '$.${field}')`;
+      if (want === true) parts.push(`COALESCE(${value}, 0) NOT IN (0, '')`);
+      else if (want === false) parts.push(`COALESCE(${value}, 0) IN (0, '')`);
+      else {
+        parts.push(`${value} = ?`);
+        params.push(want);
+      }
+    }
+    const filter = parts.join(" AND ");
+    const database = await db();
+    // One extra row says whether there is a next page.
+    const found = await database.getAllAsync<{ data: string }>(
+      `SELECT data FROM register_rows WHERE ${filter} ORDER BY pos LIMIT ? OFFSET ?`,
+      [...params, limit + 1, offset],
+    );
+    const counted = withTotal
+      ? ((
+          await database.getFirstAsync<{ n: number }>(
+            `SELECT count(*) AS n FROM (SELECT 1 FROM register_rows WHERE ${filter} LIMIT ${TOTAL_CAP + 1})`,
+            params,
+          )
+        )?.n ?? 0)
+      : null;
+    return {
+      rows: found.slice(0, limit).map((r) => JSON.parse(r.data) as T),
+      total: counted === null ? null : Math.min(counted, TOTAL_CAP),
+      capped: counted !== null && counted > TOTAL_CAP,
+      hasMore: found.length > limit,
+      offset,
+      limit,
+    };
+  }
 }
 
 /**
