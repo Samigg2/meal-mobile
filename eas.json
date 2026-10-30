@@ -8,12 +8,12 @@
       "developmentClient": true,
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://172.21.228.192:4000/api/v1" }
+      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.3.116:4000/api/v1" }
     },
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "http://172.21.228.192:4000/api/v1" }
+      "env": { "EXPO_PUBLIC_API_URL": "http://192.168.3.116:4000/api/v1" }
     },
     "production": {}
   }
