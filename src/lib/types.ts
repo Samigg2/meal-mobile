@@ -563,24 +563,23 @@ export interface LearningAgendaItemRow {
   updated_at: string;
   custom: Record<string, unknown>;
   owner_id: string | null;
-  collaborators: string | null;
   dissemination: string[];
   outcome_area: string | null;
   schedule_quarters: string[];
+  collaborator_ids: string[];
 }
 
 export interface LessonsLearnedRow {
   id: string;
   organization_id: string | null;
   title: string;
-  source: string;
+  source: string | null;
   context: string | null;
   lesson: string;
   recommendation: string | null;
   status: string;
   priority: string;
   region: string | null;
-  tags: string[];
   date_identified: string;
   created_by: string | null;
   created_at: string;
@@ -593,6 +592,9 @@ export interface LessonsLearnedRow {
   change_effected: string | null;
   agenda_item_id: string | null;
   meeting_id: string | null;
+  source_feedback_id: string | null;
+  source_evaluation_id: string | null;
+  source_survey_id: string | null;
 }
 
 export interface LoanApplicationRow {
@@ -865,6 +867,7 @@ export interface ReflectionMeetingRow {
   zone: string | null;
   woreda: string | null;
   question_ids: string[];
+  year_reviewed: string | null;
 }
 
 export interface RegistrationCheckRow {

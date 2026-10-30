@@ -66,8 +66,8 @@ function formFromInput(p: ParticipantInput): FormState {
     sex: p.sex,
     region: p.region,
     zone: p.zone,
-    woreda: OTHER,
-    woreda_other: p.woreda,
+    woreda: p.woreda,
+    woreda_other: "",
     kebele: p.kebele ?? "",
     phone: p.phone,
     email: p.email ?? "",
@@ -124,7 +124,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   const woredas = locations.woredasOf(form.zone);
   // Woreda coverage in reference data is partial, so "Other" lets a woreda that
   // is not listed yet be typed rather than blocking the registration.
-  const woredaOptions: Option[] = [...woredas, { label: "Other (type it)", value: OTHER }];
+  const woredaOptions: Option[] = woredas;
 
   const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
   const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
@@ -184,8 +184,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
       let woredaOther = prev.woreda_other;
       if (!woreda && data.woreda && zone === (data.zone ?? "")) {
         const listed = locations.woredasOf(zone).some((w) => w.value === data.woreda);
-        woreda = listed ? data.woreda : OTHER;
-        woredaOther = listed ? "" : data.woreda;
+        if (listed) woreda = data.woreda;
       }
       return {
         ...prev,
@@ -437,7 +436,8 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
             required
             value={form.phone}
             onChangeText={(v) => update("phone", v)}
-            placeholder="e.g. 0912345678"
+            placeholder="09…"
+            maxLength={10}
             keyboardType="phone-pad"
             onBlur={() => checkField("phone")}
             error={errors.phone}
@@ -527,19 +527,8 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
             onChange={(v) => update("woreda", v, true)}
             placeholder={form.zone ? "Select woreda" : "Select the zone first"}
             disabled={!form.zone}
-            error={form.woreda === OTHER ? undefined : errors.woreda}
+            error={errors.woreda}
           />
-          {form.woreda === OTHER ? (
-            <Field
-              label="Woreda name"
-              required
-              value={form.woreda_other}
-              onChangeText={(v) => update("woreda_other", v)}
-              onBlur={() => checkField("woreda")}
-              autoCapitalize="words"
-              error={errors.woreda}
-            />
-          ) : null}
           <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
         </Section>
         ) : null}

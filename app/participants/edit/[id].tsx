@@ -13,6 +13,7 @@ import { SavedNotice } from "@/components/field-form";
 import {
   EMPTY,
   OTHER,
+  localPhone,
   ageOn,
   isRealDate,
   STEP_FIELDS,
@@ -63,10 +64,10 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
     sex: p.sex ?? undefined,
     region: p.region ?? "",
     zone: p.zone ?? "",
-    woreda: listed ? (p.woreda ?? "") : OTHER,
-    woreda_other: listed ? "" : (p.woreda ?? ""),
+    woreda: listed ? (p.woreda ?? "") : "",
+    woreda_other: "",
     kebele: p.kebele ?? "",
-    phone: p.phone ?? "",
+    phone: localPhone(p.phone),
     email: p.email ?? "",
     education_level: p.education_level ?? "",
     marital_status: p.marital_status ?? "",
@@ -178,7 +179,7 @@ function EditForm({
   const woredas = locations.woredasOf(form.zone);
   // Woreda coverage in reference data is partial, so "Other" lets a woreda that
   // is not listed yet be typed rather than blocking the save.
-  const woredaOptions: Option[] = [...woredas, { label: "Other (type it)", value: OTHER }];
+  const woredaOptions: Option[] = woredas;
 
   const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
   const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
@@ -360,6 +361,7 @@ function EditForm({
             required
             value={form.phone}
             onChangeText={(v) => update("phone", v)}
+            maxLength={10}
             keyboardType="phone-pad"
             onBlur={() => checkField("phone")}
             error={errors.phone}
@@ -445,19 +447,8 @@ function EditForm({
             onChange={(v) => update("woreda", v, true)}
             placeholder={form.zone ? "Select woreda" : "Select the zone first"}
             disabled={!form.zone}
-            error={form.woreda === OTHER ? undefined : errors.woreda}
+            error={errors.woreda}
           />
-          {form.woreda === OTHER ? (
-            <Field
-              label="Woreda name"
-              required
-              value={form.woreda_other}
-              onChangeText={(v) => update("woreda_other", v)}
-              onBlur={() => checkField("woreda")}
-              autoCapitalize="words"
-              error={errors.woreda}
-            />
-          ) : null}
           <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
         </Section>
         ) : null}

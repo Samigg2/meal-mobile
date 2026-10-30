@@ -62,6 +62,10 @@ export const EMPTY: FormState = {
 
 export const OTHER = "other";
 export const PHONE_RE = /^(?:\+251|0)[79]\d{8}$/;
+/** The phone number as the participant form takes it: 10 digits, starting 09 or 07. */
+export const LOCAL_PHONE_RE = /^0[79]\d{8}$/;
+/** A stored +251 number shown in the 10-digit form. */
+export const localPhone = (p?: string | null) => (p ?? "").replace(/[\s-]/g, "").replace(/^\+251/, "0");
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -135,7 +139,7 @@ export function validate(form: FormState, woredaListed: boolean, settings: Progr
   }
 
   if (!form.phone.trim()) errors.phone = "Phone is required.";
-  else if (!PHONE_RE.test(form.phone.replace(/[\s-]/g, ""))) errors.phone = "Use 0912345678 or +251912345678.";
+  else if (!LOCAL_PHONE_RE.test(form.phone.replace(/[\s-]/g, ""))) errors.phone = "Use 10 digits starting 09 or 07, like 0912345678.";
 
   if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) errors.email = "Enter a valid email address.";
 
