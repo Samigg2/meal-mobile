@@ -18,7 +18,17 @@ if (!CONFIGURED_URL && !__DEV__) {
   throw new Error("EXPO_PUBLIC_API_URL is not set for this build");
 }
 
-const BASE_URL = (CONFIGURED_URL ?? "http://localhost:4000/api/v1").replace(/\/$/, "");
+/**
+ * One address, or several separated by commas (2026-10-30): a test APK that
+ * works on two or three Wi-Fi networks (home, office), each with the API on its
+ * own address. The first is used until it stops answering; then the phone asks
+ * each one and keeps the first that answers (`switchServer`).
+ */
+const BASE_URLS: string[] = String(CONFIGURED_URL ?? "http://localhost:4000/api/v1")
+  .split(",")
+  .map((u: string) => u.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+let BASE_URL = BASE_URLS[0];
 
 const ACCESS_KEY = "meal-mis.access-token";
 const REFRESH_KEY = "meal-mis.refresh-token";
@@ -205,6 +215,50 @@ type Query = Record<string, string | number | boolean | undefined | null>;
 
 /** How long a request may take before it is treated as offline. */
 const REQUEST_TIMEOUT_MS = 20_000;
+/** How long an address may take to answer the check. */
+const PROBE_TIMEOUT_MS = 3_000;
+/** A failed check is not repeated sooner than this, so offline screens do not keep probing. */
+const PROBE_EVERY_MS = 15_000;
+let lastProbe = 0;
+let probing: Promise<boolean> | null = null;
+
+/** The API's own health check, outside /api/v1. */
+const healthUrl = (base: string) => `${base.replace(/\/api\/v1$/, "")}/health`;
+
+async function answers(base: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    return (await fetch(healthUrl(base), { signal: controller.signal })).ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The address in use did not answer: asks every configured address at once and
+ * moves to the first (in the order given) that answers. True when it moved, so
+ * the request can be tried again there; never retried on the same address.
+ */
+function switchServer(): Promise<boolean> {
+  if (BASE_URLS.length < 2) return Promise.resolve(false);
+  if (probing) return probing;
+  if (Date.now() - lastProbe < PROBE_EVERY_MS) return Promise.resolve(false);
+  probing = (async () => {
+    const failed = BASE_URL;
+    const ok = await Promise.all(BASE_URLS.map(answers));
+    lastProbe = Date.now();
+    const found = BASE_URLS.find((_, i) => ok[i]);
+    if (!found || found === failed) return false;
+    BASE_URL = found;
+    return true;
+  })().finally(() => {
+    probing = null;
+  });
+  return probing;
+}
 
 interface Options {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
@@ -242,6 +296,9 @@ async function send<T>(path: string, options: Options, allowRefresh: boolean): P
       signal: controller.signal,
     });
   } catch (error) {
+    clearTimeout(timer);
+    // Another Wi-Fi: the request never reached this address, so it is safe to send again on the one that answers.
+    if (await switchServer()) return send<T>(path, options, allowRefresh);
     throw new ApiError(
       0,
       controller.signal.aborted
@@ -303,6 +360,7 @@ async function sendFile<T>(
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
   } catch (error) {
+    if (await switchServer()) return sendFile<T>(path, file, fields, allowRefresh);
     throw new ApiError(0, error instanceof Error ? error.message : "Network request failed");
   }
 
@@ -345,4 +403,5 @@ export const api = {
   },
 };
 
-export const apiBaseUrl = BASE_URL;
+/** The address in use (shown in development). */
+export const apiBaseUrl = () => BASE_URL;

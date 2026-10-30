@@ -147,7 +147,7 @@ export default function More() {
         <ListRow icon={Info} title="App version" right={<Text style={styles.value}>{version}</Text>} chevron={false} />
         <ListRow icon={FileLock2} title="Privacy notice" onPress={() => setSheet("privacy")} last={!__DEV__} />
         {/* The API address is for developers only; it is not shown in release builds. */}
-        {__DEV__ ? <ListRow icon={Info} title="API (development)" subtitle={apiBaseUrl} chevron={false} last /> : null}
+        {__DEV__ ? <ListRow icon={Info} title="API (development)" subtitle={apiBaseUrl()} chevron={false} last /> : null}
       </Group>
 
       <Button title="Sign out" variant="outlineDanger" icon={LogOut} onPress={confirmSignOut} />

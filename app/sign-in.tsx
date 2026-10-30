@@ -163,7 +163,7 @@ export default function SignIn() {
           </View>
 
           {/* Developers only: never shown in a release build. */}
-          {__DEV__ ? <Text style={styles.server}>{apiBaseUrl}</Text> : null}
+          {__DEV__ ? <Text style={styles.server}>{apiBaseUrl()}</Text> : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
