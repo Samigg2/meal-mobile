@@ -116,14 +116,35 @@ export async function isEncrypted(): Promise<boolean> {
 
 let key: Promise<Uint8Array> | null = null;
 
-/** The phone's own 256-bit key, made once and kept in the secure store (Keychain / Keystore). */
+/** Tries before a read of the secure store is taken as failed (it can fail briefly at start-up). */
+const KEY_READ_TRIES = 3;
+
+async function readSavedKey(): Promise<string | null> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await secureStorage.read(KEY_NAME);
+    } catch (error) {
+      if (attempt >= KEY_READ_TRIES) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+    }
+  }
+}
+
+/**
+ * The phone's own 256-bit key, made once and kept in the secure store (Keychain / Keystore).
+ * A new key is made only when the store answers that there is none: a failed read
+ * fails here (and is tried again on the next call) instead of replacing the key,
+ * which would leave every form and photo saved under the old one unreadable.
+ */
 function deviceKey(): Promise<Uint8Array> {
   if (!key) {
     key = (async () => {
-      const saved = await secureStorage.get(KEY_NAME);
+      const saved = await readSavedKey();
       if (saved) return hexToBytes(saved);
       const made = Crypto.getRandomBytes(32);
-      await secureStorage.set(KEY_NAME, bytesToHex(made));
+      await secureStorage.write(KEY_NAME, bytesToHex(made));
+      // Only a key that is really saved is used: otherwise the next launch could not open what this one writes.
+      if ((await readSavedKey()) !== bytesToHex(made)) throw new Error("The device key could not be saved");
       return made;
     })();
     key.catch(() => {

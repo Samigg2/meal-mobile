@@ -2,6 +2,7 @@ import { api, ApiError } from "./api";
 import { cachedFetch, cachedFetchStamped } from "./offline-cache";
 import { listCopy, onDownloadProgress, type DeletedSince, type ListCopy } from "./offline-lists";
 import { timed } from "./timing";
+import { db } from "./device-store";
 import { fetchLookups, fetchSettings } from "./reference";
 import type { PermissionModule } from "./permissions";
 import type { PillTone } from "@/theme";
@@ -482,28 +483,55 @@ export const getSurvey = (id: string) =>
  * their rosters, lenders, the work plan. Returns how many survey forms and
  * trainings were stored.
  */
+/** When the reference lists, survey forms and rosters were last all downloaded (cleared with the saved copies). */
+const PREFETCHED = "prefetch:at";
+/** A sign-in or start-up within this long of the last full download only brings the registers up to date. */
+const PREFETCH_EVERY_MS = 6 * 60 * 60 * 1000;
+
+async function prefetchedRecently(): Promise<boolean> {
+  try {
+    const row = await (await db()).getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", [PREFETCHED]);
+    return !!row && Date.now() - new Date(row.value).getTime() < PREFETCH_EVERY_MS;
+  } catch {
+    return false;
+  }
+}
+
 export async function downloadForOffline(
   can: (module: PermissionModule, action?: "read" | "write") => boolean,
   /** 0-100 while the registers download (the bulk of the time), for the Sync screen. */
   onPercent?: (percent: number) => void,
+  /**
+   * Start-up and sign-in (deep review, 2026-10-31): the lists, forms and rosters
+   * downloaded again, one request after another, on every start. Now only when
+   * the copy is older than PREFETCH_EVERY_MS; the registers, which ask only
+   * for what changed, are always brought up to date. Download for offline on
+   * the Sync screen still takes everything.
+   */
+  opts: { onlyIfStale?: boolean } = {},
 ): Promise<{
   surveys: number;
   trainings: number;
 }> {
-  await fetchLookups();
-  await fetchSettings();
   let active: SurveyListItem[] = [];
-  if (can("surveys")) {
-    active = (await listSurveys()).filter((s) => s.status === "active");
-    for (const s of active) await getSurvey(s.id);
-  }
   let trainings: TrainingEventRow[] = [];
-  if (can("training", "write")) {
-    trainings = nearToday(await listTrainingEvents());
-    for (const t of trainings) await getTrainingDetail(t.id);
+  if (!(opts.onlyIfStale && (await prefetchedRecently()))) {
+    await fetchLookups();
+    await fetchSettings();
+    if (can("surveys")) {
+      active = (await listSurveys()).filter((s) => s.status === "active");
+      for (const s of active) await getSurvey(s.id);
+    }
+    if (can("training", "write")) {
+      trainings = nearToday(await listTrainingEvents());
+      for (const t of trainings) await getTrainingDetail(t.id);
+    }
+    if (can("finance", "write")) await listProviders();
+    if (can("monitoring", "write")) await listActivities();
+    await (await db())
+      .runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [PREFETCHED, new Date().toISOString()])
+      .catch(() => undefined);
   }
-  if (can("finance", "write")) await listProviders();
-  if (can("monitoring", "write")) await listActivities();
   // The complete registers of the person's organization, for lists and search with no connection.
   const copies: ListCopy<{ id: string }>[] = [];
   if (can("participants")) copies.push(participantsCopy);

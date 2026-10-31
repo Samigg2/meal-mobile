@@ -12,6 +12,7 @@ import {
 } from "./api";
 import type { AppRole, ProfileRow } from "./types";
 import { downloadForOffline } from "./data";
+import { claimPhoneFor } from "./offline-cache";
 import {
   hasPermission,
   isGlobalScope,
@@ -58,11 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(data.profile);
       setClusterRegion(data.cluster_region ?? null);
       setRoles(data.roles);
-      // Refresh the reference lists and survey forms kept for offline work, in
-      // the background, whenever the officer is online and signed in.
-      void downloadForOffline((module, action = "read") => hasPermission(data.roles, module, action)).catch(
-        () => undefined,
-      );
+      // Refresh what is kept for offline work, in the background, whenever the
+      // officer is online and signed in: the registers always, the lists and
+      // forms when their copy is a few hours old.
+      const can = (module: PermissionModule, action: PermissionAction = "read") =>
+        hasPermission(data.roles, module, action);
+      void downloadForOffline(can, undefined, { onlyIfStale: true }).catch(() => undefined);
       try {
         const { overrides } = await api.get<{
           overrides: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[];
@@ -90,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     void (async () => {
       const restored = await loadSession();
+      if (restored) await claimPhoneFor(restored.id, true).catch(() => undefined);
       if (!active) return;
       setUser(restored);
       setReady(true);
@@ -113,6 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, keep = true) => {
       try {
         const session = await api.anon.post<SessionResponse>("/auth/login", { email, password });
+        // Before anything is shown or downloaded: another person's saved copies go first.
+        await claimPhoneFor(session.user.id);
         await saveSession(session, keep);
         setUser(session.user);
         await fetchProfile();

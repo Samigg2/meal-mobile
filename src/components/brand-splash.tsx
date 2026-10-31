@@ -4,10 +4,10 @@ import Svg, { Path, Rect } from "react-native-svg";
 import { Text } from "@/components/ui";
 import { colors, spacing } from "@/theme";
 
-/** The sky blue of the web's sign-in logo and banner. */
-const SKY = "#7DD3FC";
+/** blue-500 (colors.primary), trying it in place of the web's sky blue #7DD3FC. */
+const SKY = colors.primary;
 
-/** The programme mark, as on the web: an R whose leg is a leaf, sky blue on a navy rounded square. */
+/** The programme mark: an R whose leg is a leaf, blue-500 on a navy rounded square. */
 export function LogoMark({ size = 60 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 48 48" fill="none">

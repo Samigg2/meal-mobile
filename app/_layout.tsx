@@ -1,7 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { Stack, useRouter, useSegments, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { useFonts } from "expo-font";
 import {
   PlusJakartaSans_400Regular,
@@ -11,17 +12,65 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { useAutoSync } from "@/lib/auto-sync";
 // Defines the background send task at start-up, as the task manager requires.
 import "@/lib/background-sync";
 import { StartScreen } from "@/components/brand-splash";
-import { colors, fontFamilies } from "@/theme";
+import { Button, Text } from "@/components/ui";
+import { reportError } from "@/lib/error-report";
+import { colors, fontFamilies, spacing } from "@/theme";
 
 /** Sends the offline queue on its own while someone is signed in (lib/auto-sync.ts). */
 function AutoSync() {
   useAutoSync();
   return null;
+}
+
+/** Screens that need no session (a young person registering herself, sign-in, Fayida's return). */
+const PUBLIC_SCREENS = new Set(["", "index", "sign-in", "register", "registration-status", "forgot-password", "fayida"]);
+
+/**
+ * Only the tabs used to check for a session, so a screen opened from a link or
+ * left open (a participant, Sync) still showed its saved copy after the session
+ * ended. Every screen now goes to sign-in once there is no session, and what
+ * the session had loaded is dropped from memory.
+ */
+function SessionGuard() {
+  const { ready, user } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const screen = segments[0] ?? "";
+  const open = PUBLIC_SCREENS.has(screen);
+  useEffect(() => {
+    if (!ready || user) return;
+    queryClient.clear();
+    if (!open) router.replace("/sign-in");
+  }, [ready, user, open, queryClient, router]);
+  return null;
+}
+
+/**
+ * A screen that crashed (deep review, 2026-10-31). It used to close the whole
+ * app; now it says so, offers Try again, and the crash is sent to the server's log.
+ * Waiting forms are not touched: they are saved on the phone, not in the screen.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => {
+    reportError(error, "screen");
+  }, [error]);
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, backgroundColor: colors.background }}>
+      <Text style={{ fontSize: 17, fontFamily: fontFamilies["700"], color: colors.text, textAlign: "center" }}>
+        This screen stopped working
+      </Text>
+      <Text style={{ marginTop: spacing.sm, marginBottom: spacing.lg, color: colors.muted, textAlign: "center" }}>
+        Your saved and waiting forms are safe on this phone. Try again, or go back and open it once more.
+      </Text>
+      <Button title="Try again" onPress={() => void retry()} />
+    </View>
+  );
 }
 
 export default function RootLayout() {
@@ -49,6 +98,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <AutoSync />
+          <SessionGuard />
           <StatusBar style="dark" />
           <Stack
             screenOptions={{

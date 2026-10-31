@@ -37,7 +37,7 @@ import {
   placementsCopy,
 } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { useQueue } from "@/lib/net";
+import { useQueueCounts } from "@/lib/net";
 import { displayName, greeting } from "@/lib/user";
 import {
   activityRow,
@@ -82,7 +82,7 @@ const timeAgo = (ms: number) => {
 export default function Home() {
   const router = useRouter();
   const { can, profile, user } = useAuth();
-  const queued = useQueue();
+  const { total: waiting } = useQueueCounts();
   const [more, setMore] = useState(false);
 
   // Every task the role may do, most used first; a role sees only its own.
@@ -190,11 +190,11 @@ export default function Home() {
             <Shield size={20} color={colors.onNavyMuted} />
           </View>
           <View style={styles.syncLine}>
-            {queued.length > 0 ? (
+            {waiting > 0 ? (
               <>
                 <CloudUpload size={14} color="#FCD34D" />
                 <Text style={styles.syncText}>
-                  {queued.length} item{queued.length === 1 ? "" : "s"} waiting to upload
+                  {waiting} item{waiting === 1 ? "" : "s"} waiting to upload
                 </Text>
               </>
             ) : (

@@ -176,10 +176,16 @@ const MINE = "(owner IS NULL OR owner = ?)";
 const me = () => getSessionUser()?.id ?? "";
 
 export async function readQueue(): Promise<QueuedItem[]> {
+  let rows: Row[];
   try {
-    const rows = await (await db()).getAllAsync<Row>(`SELECT * FROM queue WHERE ${MINE} ORDER BY created_at`, [me()]);
-    const items: QueuedItem[] = [];
-    for (const r of rows) {
+    rows = await (await db()).getAllAsync<Row>(`SELECT * FROM queue WHERE ${MINE} ORDER BY created_at`, [me()]);
+  } catch {
+    return [];
+  }
+  const items: QueuedItem[] = [];
+  for (const r of rows) {
+    // One row that cannot be opened is left where it is; the others still show and upload.
+    try {
       items.push({
         id: r.id,
         kind: r.kind,
@@ -189,11 +195,11 @@ export async function readQueue(): Promise<QueuedItem[]> {
         attempts: r.attempts,
         lastError: r.last_error ?? undefined,
       });
+    } catch {
+      /* unreadable row: kept, skipped */
     }
-    return items;
-  } catch {
-    return [];
   }
+  return items;
 }
 
 /** How many items wait, without opening them. */
@@ -203,6 +209,19 @@ export async function queueSize(): Promise<number> {
     return row?.n ?? 0;
   } catch {
     return 0;
+  }
+}
+
+/** How many items wait and how many of those were refused, without opening any of them. */
+export async function queueCounts(): Promise<{ total: number; failed: number }> {
+  try {
+    const row = await (await db()).getFirstAsync<{ total: number; failed: number | null }>(
+      `SELECT count(*) AS total, sum(CASE WHEN last_error IS NOT NULL THEN 1 ELSE 0 END) AS failed FROM queue WHERE ${MINE}`,
+      [me()],
+    );
+    return { total: row?.total ?? 0, failed: row?.failed ?? 0 };
+  } catch {
+    return { total: 0, failed: 0 };
   }
 }
 
@@ -285,21 +304,38 @@ export async function removeFromQueue(id: string): Promise<void> {
   notify();
 }
 
+/** Discards the signed-in officer's waiting items, and the photos only they needed. */
 export async function clearQueue(): Promise<void> {
-  await (await db()).runAsync("DELETE FROM queue");
-  await dropUnusedPhotos(new Set(), true);
+  await (await db()).runAsync(`DELETE FROM queue WHERE ${MINE}`, [me()]);
+  await dropPhotosNoOneNeeds();
   notify();
 }
 
-/** The kept photos the waiting items still need: a photo's own id, or a form's `_photos`. */
-function photosInUse(items: QueuedItem[]): Set<string> {
-  const ids = new Set<string>();
-  for (const item of items) {
-    const p = item.payload as { photoId?: string; _photos?: { photoId?: string }[] } | null;
-    if (p?.photoId) ids.add(p.photoId);
-    for (const photo of p?._photos ?? []) if (photo.photoId) ids.add(photo.photoId);
+/**
+ * The kept photos any waiting item still needs (a photo's own id, or a form's
+ * `_photos`), whoever saved it: another officer's items on a shared phone count
+ * too. Null when a row cannot be opened: what it needs is then unknown, so no
+ * photo may be removed.
+ */
+async function photosInUse(): Promise<Set<string> | null> {
+  try {
+    const rows = await (await db()).getAllAsync<{ payload: string }>("SELECT payload FROM queue");
+    const ids = new Set<string>();
+    for (const r of rows) {
+      const p = JSON.parse(await open(r.payload)) as { photoId?: string; _photos?: { photoId?: string }[] } | null;
+      if (p?.photoId) ids.add(p.photoId);
+      for (const photo of p?._photos ?? []) if (photo.photoId) ids.add(photo.photoId);
+    }
+    return ids;
+  } catch {
+    return null;
   }
-  return ids;
+}
+
+/** Photos left by a discarded item or a form closed without saving; nothing when the queue cannot be read in full. */
+async function dropPhotosNoOneNeeds(): Promise<void> {
+  const inUse = await photosInUse();
+  if (inUse) await dropUnusedPhotos(inUse);
 }
 
 /** A lost connection is not a failed attempt: only a refusal counts. */
@@ -355,8 +391,7 @@ async function replay(): Promise<{ synced: number; failed: number }> {
       if (message === STILL_OFFLINE) break;
     }
   }
-  // Photos left by a discarded item or a form closed without saving.
-  await dropUnusedPhotos(photosInUse(await readQueue()));
+  await dropPhotosNoOneNeeds();
   return { synced, failed };
 }
 

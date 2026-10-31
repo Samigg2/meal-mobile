@@ -24,6 +24,19 @@ export const secureStorage = {
       /* storage unavailable: the session stays in memory for this launch */
     }
   },
+  /**
+   * Like get, but a failed read throws instead of looking like "nothing saved":
+   * for the device key, where "nothing saved" makes a new key and every
+   * encrypted form saved under the old one could never be opened again.
+   */
+  async read(key: string): Promise<string | null> {
+    return useSecureStore ? SecureStore.getItemAsync(key) : AsyncStorage.getItem(key);
+  },
+  /** Like set, but a failed write throws, so a key that was never saved is never used. */
+  async write(key: string, value: string): Promise<void> {
+    if (useSecureStore) await SecureStore.setItemAsync(key, value);
+    else await AsyncStorage.setItem(key, value);
+  },
   async remove(key: string): Promise<void> {
     try {
       if (useSecureStore) await SecureStore.deleteItemAsync(key);

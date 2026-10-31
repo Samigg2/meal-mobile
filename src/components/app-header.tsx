@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bell, CloudCheck, CloudUpload, Search, UserRound } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getNotifications } from "@/lib/data";
-import { useQueue } from "@/lib/net";
+import { useQueueCounts } from "@/lib/net";
 import { useAuth } from "@/lib/auth";
 import { displayName } from "@/lib/user";
 import { Text } from "@/components/ui";
@@ -19,7 +19,7 @@ import { colors, spacing } from "@/theme";
 export function AppHeader() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const queued = useQueue();
+  const { total: pending } = useQueueCounts();
   const { profile, user } = useAuth();
 
   // The same count the web bell shows (not yet opened items); offline it keeps the last number.
@@ -31,7 +31,6 @@ export function AppHeader() {
     retry: false,
   });
   const notifications = notes?.total ?? 0;
-  const pending = queued.length;
 
   return (
     <View style={[styles.header, { paddingTop: insets.top, height: 56 + insets.top }]}>

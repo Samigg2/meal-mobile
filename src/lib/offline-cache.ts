@@ -10,7 +10,7 @@ import { db, open, seal } from "./device-store";
  * Survey responses are not kept on the device beyond the upload queue (Proclamation
  * 1321/2024, TOR Annex 6). Kept in the SQLite cache table (device-store.ts).
  * What the work cannot do without is kept `secret` (encrypted like the queue) and
- * wiped on sign-out (clearSecretCache): a training's roster of names, a participant
+ * wiped when a different person signs in (claimPhoneFor): a training's roster of names, a participant
  * the officer opened, and (decided 2026-10-21) a complete copy of the person's own
  * organization's participant, enterprise, job and loan lists, so the lists, search
  * and records open with no connection (lib/offline-lists.ts).
@@ -86,14 +86,48 @@ export async function cachedAt(key: string): Promise<string | null> {
   return (await readCache(key))?.savedAt ?? null;
 }
 
-/** Removes the encrypted copies (rosters, opened records, the saved registers) when someone signs out of this phone. */
+/**
+ * Removes the encrypted copies (rosters, opened records, the saved registers),
+ * with the markers that say how far each register was downloaded: left behind,
+ * the next download asked only for changes and filled an empty register with a few rows.
+ */
 export async function clearSecretCache(): Promise<void> {
   try {
     const database = await db();
     await database.runAsync("DELETE FROM cache WHERE value LIKE ?", [`${SEALED}%`]);
     await database.runAsync("DELETE FROM register_rows");
-    await database.runAsync("DELETE FROM meta WHERE key LIKE 'saved:%'");
+    await database.runAsync(
+      "DELETE FROM meta WHERE key LIKE 'saved:%' OR key LIKE 'changed:%' OR key LIKE 'full:%' OR key LIKE 'prefetch:%'",
+    );
   } catch {
     /* nothing stored */
   }
+}
+
+/** Whose copies the phone holds now. */
+const HOLDER = "phone:holder";
+
+/**
+ * Called when someone signs in (decided 2026-10-31). Signing out keeps the
+ * saved copies, so the same officer signs back in to full lists with nothing to
+ * download again. A different person never sees them: what they saw depends on
+ * their role and cluster (an admin's copy holds every cluster), so the copies
+ * are wiped before this person's own download starts. The waiting forms stay,
+ * each shown only to the officer who saved it (queue.ts, `owner`); the oldest
+ * ones, saved before owners were recorded, are given to the person before.
+ *
+ * `restored`: an existing session opened at start-up. A phone that has no
+ * holder yet then keeps what it has (it was saved by this session), where a
+ * sign-in wipes it.
+ */
+export async function claimPhoneFor(userId: string, restored = false): Promise<void> {
+  const database = await db();
+  const holder = (await database.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", [HOLDER]))
+    ?.value;
+  if (holder === userId) return;
+  if (holder || !restored) {
+    if (holder) await database.runAsync("UPDATE queue SET owner = ? WHERE owner IS NULL", [holder]);
+    await clearSecretCache();
+  }
+  await database.runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [HOLDER, userId]);
 }

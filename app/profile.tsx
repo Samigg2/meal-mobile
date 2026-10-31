@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Building2, CloudDownload, CloudUpload, Mail, ShieldCheck, TriangleAlert } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
-import { useQueue } from "@/lib/net";
+import { useQueueCounts } from "@/lib/net";
 import { cachedAt } from "@/lib/offline-cache";
 import { LOOKUPS_CACHE_KEY } from "@/lib/reference";
 import { displayName, initialsOf } from "@/lib/user";
@@ -25,7 +25,7 @@ const when = (iso: string | null) =>
 export default function Profile() {
   const router = useRouter();
   const { profile, roles, user, isGlobalScope } = useAuth();
-  const queued = useQueue();
+  const { total: waiting, failed } = useQueueCounts();
   const [lastDownload, setLastDownload] = useState<string | null>(null);
   useEffect(() => {
     void cachedAt(LOOKUPS_CACHE_KEY).then(setLastDownload);
@@ -33,7 +33,6 @@ export default function Profile() {
 
   const name = displayName(profile, user?.email);
   const email = profile?.email ?? user?.email ?? "";
-  const failed = queued.filter((q) => q.lastError).length;
   const reach = isGlobalScope ? "National: all organizations" : (profile?.organization ?? "Own organization only");
 
   return (
@@ -72,13 +71,13 @@ export default function Profile() {
       <Card style={styles.group}>
         <ListRow
           icon={CloudUpload}
-          color={queued.length ? colors.warning : colors.success}
-          tint={queued.length ? colors.warningSoft : colors.successSoft}
+          color={waiting ? colors.warning : colors.success}
+          tint={waiting ? colors.warningSoft : colors.successSoft}
           title="Waiting to send"
           right={
             <StatusPill
-              label={queued.length ? String(queued.length) : "None"}
-              tone={queued.length ? "amber" : "green"}
+              label={waiting ? String(waiting) : "None"}
+              tone={waiting ? "amber" : "green"}
             />
           }
           onPress={() => router.push("/sync")}

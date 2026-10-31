@@ -7,7 +7,7 @@ import { timed } from "./timing";
 /*
  * The registers a field officer must be able to open with no connection
  * (participants, enterprises, jobs, loans): a complete copy of what the person's
- * own organization holds, wiped on sign-out (offline-cache.ts, clearSecretCache).
+ * own organization holds, wiped when a different person signs in (offline-cache.ts, claimPhoneFor).
  * The server already limits every list to the person's organization, so the copy
  * never holds another organization's rows.
  *

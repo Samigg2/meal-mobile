@@ -14,9 +14,8 @@ import {
   UserRound,
 } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
-import { useQueue } from "@/lib/net";
-import { clearQueue, syncQueue } from "@/lib/queue";
-import { clearSecretCache } from "@/lib/offline-cache";
+import { useQueueCounts } from "@/lib/net";
+import { syncQueue } from "@/lib/queue";
 import { apiBaseUrl } from "@/lib/api";
 import { displayName, initialsOf } from "@/lib/user";
 import { BottomSheet, Button, Card, ListRow, StatusPill, Text } from "@/components/ui";
@@ -32,13 +31,12 @@ export default function More() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { profile, roles, user, signOut, isGlobalScope } = useAuth();
-  const queued = useQueue();
+  const { total: pending } = useQueueCounts();
   const [syncing, setSyncing] = useState(false);
   const [sheet, setSheet] = useState<"privacy" | null>(null);
 
   const name = displayName(profile, user?.email);
   const email = profile?.email ?? user?.email ?? "";
-  const pending = queued.length;
   const version = Constants.expoConfig?.version ?? "1.0.0";
 
   async function handleSync() {
@@ -58,18 +56,23 @@ export default function More() {
   }
 
   function confirmSignOut() {
-    // Unsent items are deleted on sign-out: they hold personal data, and the
-    // next person to sign in on this phone must not upload them as their own.
+    // Signing out keeps what is saved on the phone (decided 2026-10-31): the
+    // waiting items upload when this officer signs in again, and another person
+    // signing in never sees them or the saved lists (claimPhoneFor wipes those first).
     const warning =
       pending > 0
-        ? `You have ${pending} item${pending === 1 ? "" : "s"} not uploaded. Signing out deletes ${pending === 1 ? "it" : "them"} from this phone. Sync first if you can. Sign out anyway?`
+        ? `You have ${pending} item${pending === 1 ? "" : "s"} not uploaded. ${pending === 1 ? "It stays" : "They stay"} on this phone and upload${pending === 1 ? "s" : ""} when you sign in again. Sign out?`
         : "You will need to sign in again to continue.";
     Alert.alert("Sign out of RAYEE II?", warning, [
       { text: "Cancel", style: "cancel" },
       {
-        text: pending > 0 ? "Delete and sign out" : "Sign out",
+        text: "Sign out",
         style: "destructive",
-        onPress: () => void Promise.all([clearQueue(), clearSecretCache()]).finally(() => void signOut()),
+        onPress: () => {
+          // What this session showed is not left in memory for the sign-in screen.
+          queryClient.clear();
+          void signOut();
+        },
       },
     ]);
   }
