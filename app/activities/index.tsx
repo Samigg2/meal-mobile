@@ -54,7 +54,7 @@ export default function WorkPlan() {
         />
       }
       renderItem={({ item }) => {
-        const status = ACTIVITY_STATUS[item.status];
+        const status = ACTIVITY_STATUS[item.status] ?? ACTIVITY_STATUS.not_started;
         return (
           <Pressable
             accessibilityRole="button"

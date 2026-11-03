@@ -833,7 +833,7 @@ export interface FollowUpInput {
 
 /* ------------------------------- activities ------------------------------ */
 
-export type ActivityStatus = "not_started" | "in_progress" | "completed" | "cancelled";
+export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
 
 export interface ActivityRow {
   id: string;
@@ -856,6 +856,8 @@ export const ACTIVITY_STATUS: Record<ActivityStatus, { label: string; tone: Pill
   not_started: { label: "Not started", tone: "grey" },
   in_progress: { label: "In progress", tone: "blue" },
   completed: { label: "Completed", tone: "green" },
+  // Worked out from the dates, never chosen: shown, but not offered in the status picker.
+  delayed: { label: "Delayed", tone: "red" },
   cancelled: { label: "Cancelled", tone: "grey" },
 };
 

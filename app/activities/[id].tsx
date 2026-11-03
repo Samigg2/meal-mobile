@@ -13,10 +13,12 @@ import { EmptyState, Field, Loading, Select, Text } from "@/components/ui";
 /** A progress update waits with its activity (`_target`) and that activity's title. */
 type QueuedProgress = Targeted<ProgressInput & { _title?: string }>;
 
-const STATUSES = (Object.keys(ACTIVITY_STATUS) as ActivityRow["status"][]).map((value) => ({
-  label: ACTIVITY_STATUS[value].label,
-  value,
-}));
+const STATUSES = (Object.keys(ACTIVITY_STATUS) as ActivityRow["status"][])
+  .filter((value) => value !== "delayed")
+  .map((value) => ({
+    label: ACTIVITY_STATUS[value].label,
+    value,
+  }));
 
 /**
  * Progress on one work-plan activity, the same rules as the web: not started
@@ -56,7 +58,9 @@ function ProgressForm({
 }) {
   const queryClient = useQueryClient();
   const scroll = useRef<ScrollView>(null);
-  const [status, setStatus] = useState<ActivityRow["status"]>(initial?.status ?? activity.status);
+  const [status, setStatus] = useState<ActivityRow["status"]>(
+    initial?.status ?? (activity.status === "delayed" ? (activity.progress_percent > 0 ? "in_progress" : "not_started") : activity.status),
+  );
   const [percent, setPercent] = useState(String(initial?.progress_percent ?? activity.progress_percent));
   const [started, setStarted] = useState(initial?.actual_start ?? activity.actual_start?.slice(0, 10) ?? "");
   const [ended, setEnded] = useState(initial?.actual_end ?? activity.actual_end?.slice(0, 10) ?? "");
