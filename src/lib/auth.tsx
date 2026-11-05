@@ -12,7 +12,7 @@ import {
 } from "./api";
 import type { AppRole, ProfileRow } from "./types";
 import { downloadForOffline } from "./data";
-import { claimPhoneFor } from "./offline-cache";
+import { cachedFetch, claimPhoneFor } from "./offline-cache";
 import {
   hasPermission,
   isGlobalScope,
@@ -55,7 +55,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async () => {
     setLoadingProfile(true);
     try {
-      const data = await api.get<{ profile: ProfileRow; roles: AppRole[]; cluster_region?: string | null }>("/auth/me");
+      // Who the person is and what their role may do are kept on the phone
+      // (encrypted, wiped on sign-out): offline, the app used to forget them and
+      // fall back to the built-in matrix, so tiles granted by an override (Loans,
+      // Work plan) went missing (2026-11-05).
+      const data = await cachedFetch(
+        "auth-me",
+        () => api.get<{ profile: ProfileRow; roles: AppRole[]; cluster_region?: string | null }>("/auth/me"),
+        { secret: true },
+      );
       setProfile(data.profile);
       setClusterRegion(data.cluster_region ?? null);
       setRoles(data.roles);
@@ -66,9 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPermission(data.roles, module, action);
       void downloadForOffline(can, undefined, { onlyIfStale: true }).catch(() => undefined);
       try {
-        const { overrides } = await api.get<{
-          overrides: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[];
-        }>("/admin/permissions/effective");
+        const { overrides } = await cachedFetch(
+          "auth-permissions",
+          () =>
+            api.get<{
+              overrides: { role: AppRole; module: PermissionModule; action: PermissionAction; allowed: boolean }[];
+            }>("/admin/permissions/effective"),
+          { secret: true },
+        );
         setPermissionOverrides(overrides);
         setPermissionsVersion((v) => v + 1);
       } catch {
@@ -76,7 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         // Roles are data a super admin can create; their labels come from here.
-        setRoleDefinitions(await api.get<RoleDefinition[]>("/admin/roles"));
+        setRoleDefinitions(
+          await cachedFetch("auth-roles", () => api.get<RoleDefinition[]>("/admin/roles"), { secret: true }),
+        );
         setPermissionsVersion((v) => v + 1);
       } catch {
         // Keep the list last loaded (the six built-in roles on a first run).

@@ -196,8 +196,15 @@ export const loansCopy = listCopy<LoanListRow>("loans", listLoansPage, (l) => ({
   api.get<DeletedSince>("/finance/loans/deleted", { since }),
 );
 
-/** Newest-first pages for the Home tabs (no copy kept offline). */
+/** Newest-first pages for the Home tabs. */
 export const listFeedbackPage = (q: PageQuery) => api.get<Page<FeedbackRow>>("/feedback/page", q);
+/**
+ * Home's Feedback tab: the newest entries, kept encrypted so the tab still
+ * shows them offline (2026-11-05). Concerns are not kept: a safeguarding case
+ * stays off the phone.
+ */
+export const listNewestFeedback = (limit: number) =>
+  cachedFetch("home-feedback", async () => (await listFeedbackPage({ limit, offset: 0 })).rows, { secret: true });
 export const listConcernsPage = (q: PageQuery) =>
   api.get<Page<Pick<SafeguardingCaseRow, "id" | "case_type" | "status" | "reported_date" | "created_at">>>("/safeguarding/page", q);
 /** One feedback entry; kept encrypted once opened, so it opens again with no connection. */
@@ -532,6 +539,9 @@ export async function downloadForOffline(
       .runAsync("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", [PREFETCHED, new Date().toISOString()])
       .catch(() => undefined);
   }
+  // Small lists Home shows, kept fresh on every start (2026-11-05).
+  if (can("training")) await listTrainingEvents().catch(() => undefined);
+  if (can("feedback")) await listNewestFeedback(8).catch(() => undefined);
   // The complete registers of the person's organization, for lists and search with no connection.
   const copies: ListCopy<{ id: string }>[] = [];
   if (can("participants")) copies.push(participantsCopy);

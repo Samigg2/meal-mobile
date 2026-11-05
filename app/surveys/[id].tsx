@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useRegionChoices } from "@/lib/region-lock";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, type ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Location from "expo-location";
@@ -19,11 +19,11 @@ import {
   Field,
   Loading,
   Select,
-  StickyFooter,
   Text,
   Toggle,
 } from "@/components/ui";
 import { DateField } from "@/components/date-picker";
+import { FormScreen, FormStep } from "@/components/field-form";
 import { ApiError } from "@/lib/api";
 import { useLocations, useLookupOptions, type Option, useSettings } from "@/lib/reference";
 import { colors, spacing } from "@/theme";
@@ -281,6 +281,25 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
     setAnswer(question.id, { options: next });
   }
 
+  /** Next step: only this step's fields (the date, sex; the region). Questions are checked on submit. */
+  function checkStep(names: string[]): boolean {
+    const found: Record<string, string> = {};
+    if (names.includes("sex") && !sex) found.sex = "Sex is required";
+    if (names.includes("region") && !region.trim()) found.region = "Region is required";
+    if (names.includes("collected_on")) {
+      const windowProblem = outsideWindow(collectedOn, template.start_date, template.end_date);
+      if (!collectedOn) found.collected_on = "The collection date is required";
+      else if (collectedOn > todayISO()) found.collected_on = "The collection date cannot be in the future";
+      else if (windowProblem) found.collected_on = windowProblem;
+    }
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const n of names) delete next[n];
+      return { ...next, ...found };
+    });
+    return Object.keys(found).length === 0;
+  }
+
   /** Every problem at once, each under its own field, as on the web form. */
   function buildPayload(): SurveyResponseInput | null {
     const found: Record<string, string> = {};
@@ -389,9 +408,21 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <ErrorText>{formError}</ErrorText>
+    // Step by step like the other field forms (2026-11-05): Next checks only that step.
+    <FormScreen
+      ref={scroll}
+      error={formError ?? undefined}
+      saveTitle={editId ? "Save changes" : "Submit response"}
+      saving={saving}
+      onSave={handleSubmit}
+      steps={{
+        titles: ["Respondent", "Where", "Questions"],
+        fields: [["collected_on", "sex"], ["region"], questions.map((q) => q.id)],
+        check: checkStep,
+        errors,
+      }}
+    >
+      <FormStep index={0}>
         <Card style={styles.card}>
           <Text style={styles.title}>{template.title}</Text>
           {evaluation ? <Text style={styles.evaluation}>For the evaluation: {evaluation}</Text> : null}
@@ -458,6 +489,12 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
           ) : null}
           <Toggle label={`Youth (${settings.youth_min_age}–${settings.youth_max_age})`} value={isYouth} onChange={setIsYouth} />
           <Toggle label="Has a disability" value={disability} onChange={setDisability} />
+        </Card>
+      </FormStep>
+
+      <FormStep index={1}>
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Where</Text>
           <Select
             label="Region"
             required
@@ -530,6 +567,9 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
           <ErrorText>{gpsError}</ErrorText>
         </Card>
 
+      </FormStep>
+
+      <FormStep index={2}>
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Questions</Text>
           {questions.map((question) => (
@@ -609,11 +649,8 @@ function ResponseForm({ initial, queuedId }: { initial: Initial; queuedId?: stri
         <Card style={styles.card}>
           <Field label="Enumerator notes" value={notes} onChangeText={setNotes} multiline />
         </Card>
-      </ScrollView>
-      <StickyFooter>
-        <Button title={editId ? "Save changes" : "Submit response"} onPress={handleSubmit} loading={saving} />
-      </StickyFooter>
-    </KeyboardAvoidingView>
+      </FormStep>
+    </FormScreen>
   );
 }
 

@@ -26,16 +26,18 @@ import {
   listActivities,
   listConcernsPage,
   listEnterprisesPage,
-  listFeedbackPage,
+  listNewestFeedback,
   listLoansPage,
   listParticipantsPage,
   listPlacementsPage,
+  listTrainingEvents,
   listTrainingPage,
   loansCopy,
   newestOf,
   participantsCopy,
   placementsCopy,
 } from "@/lib/data";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useQueueCounts } from "@/lib/net";
 import { displayName, greeting } from "@/lib/user";
@@ -54,6 +56,21 @@ import { colors, radius, shadow, spacing, topics, type TopicName } from "@/theme
 
 /** How many task tiles show before More (two rows of three, More being the sixth). */
 const FIRST = 5;
+/**
+ * The newest sessions for Home. Offline, the saved session list (kept by the
+ * Training screen and Download for offline) instead of an error, newest first
+ * like the server.
+ */
+async function newestTrainings() {
+  try {
+    return await newestOf(listTrainingPage, undefined, NEWEST);
+  } catch (error) {
+    if (!(error instanceof ApiError && error.isNetworkError)) throw error;
+    const saved = await listTrainingEvents();
+    return [...saved].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, NEWEST);
+  }
+}
+
 /** Rows each Home tab shows before See all. */
 const NEWEST = 8;
 
@@ -140,7 +157,7 @@ export default function Home() {
             loanRow(l, person(l.participant_id ?? l.enterprises?.owner_participant_id)),
           );
         case "feedback":
-          return (await newestOf(listFeedbackPage, undefined, NEWEST)).map((f) =>
+          return (await listNewestFeedback(NEWEST)).map((f) =>
             feedbackRow(f, () => router.push({ pathname: "/feedback/[id]", params: { id: f.id } })),
           );
         case "concerns":
@@ -148,7 +165,7 @@ export default function Home() {
             concernRow(c, () => router.push({ pathname: "/safeguarding/[id]", params: { id: c.id } })),
           );
         case "attendance":
-          return (await newestOf(listTrainingPage, undefined, NEWEST)).map((t) =>
+          return (await newestTrainings()).map((t) =>
             trainingRow(t, can("training", "write") ? () => router.push(`/training/${t.id}`) : undefined),
           );
         case "workplan":

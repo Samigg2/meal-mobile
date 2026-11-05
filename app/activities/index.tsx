@@ -13,7 +13,8 @@ import { colors, radius, spacing } from "@/theme";
 export default function WorkPlan() {
   const router = useRouter();
   const { user } = useAuth();
-  const [show, setShow] = useState<"mine" | "all">("mine");
+  // Opens on Mine; with nothing assigned to the person, on All (2026-11-05).
+  const [picked, setShow] = useState<"mine" | "all" | null>(null);
   const { data, isLoading, error } = useQuery({ queryKey: ["activities"], queryFn: listActivities });
 
   if (isLoading) return <ListSkeleton rows={4} />;
@@ -26,6 +27,7 @@ export default function WorkPlan() {
     );
   }
   const mine = data.filter((a) => a.responsible_id === user?.id);
+  const show = picked ?? (mine.length > 0 ? "mine" : "all");
   const rows = (show === "mine" ? mine : data).filter((a) => a.status !== "cancelled");
 
   return (
