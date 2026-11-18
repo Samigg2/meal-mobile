@@ -73,7 +73,9 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
     education_level: p.education_level ?? "",
     marital_status: p.marital_status ?? "",
     family_size: p.family_size != null ? String(p.family_size) : "",
-    vulnerability_category: p.vulnerability_category ?? "",
+    // Dropped on the server by F01 (migration 0112, replaced by target status and
+    // female-headed household); read only when an older copy still carries it.
+    vulnerability_category: (p as { vulnerability_category?: string | null }).vulnerability_category ?? "",
     disability: !!p.disability,
     disability_type: p.disability_type ?? "",
     consent_given: p.consent_given,
