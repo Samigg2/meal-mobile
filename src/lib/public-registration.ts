@@ -60,10 +60,16 @@ export interface RegistrationInput extends RegistrationAnswers {
   verification_token: string;
   /** One-time proof of the National ID (optional). */
   fayida_token?: string;
+  /** From the Fayida check only: the nationality on the ID. */
+  nationality?: string;
 }
 
 export interface IdDetails {
   full_name?: string;
+  /** The name in Amharic (Ge'ez script), when Fayida holds one. */
+  full_name_am?: string;
+  /** Self-declared nationality, e.g. "Ethiopian". */
+  nationality?: string;
   date_of_birth?: string;
   sex?: "male" | "female";
   region?: string;

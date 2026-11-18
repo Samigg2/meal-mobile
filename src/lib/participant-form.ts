@@ -10,6 +10,8 @@ import type { ProgrammeSettings } from "./reference";
 
 export interface FormState {
   full_name: string;
+  /** Self-declared nationality, as on the Fayida ID. */
+  nationality: string;
   national_id: string;
   kebele_id: string;
   date_of_birth: string;
@@ -37,6 +39,7 @@ export interface FormState {
 
 export const EMPTY: FormState = {
   full_name: "",
+  nationality: "",
   national_id: "",
   kebele_id: "",
   date_of_birth: "",
@@ -188,6 +191,7 @@ export function toInput(form: FormState, clientRef?: string): Omit<ParticipantIn
   return {
     client_ref: clientRef,
     full_name: form.full_name.trim().replace(/\s+/g, " "),
+    nationality: text(form.nationality),
     national_id: text(form.national_id),
     kebele_id: text(form.kebele_id),
     date_of_birth: form.date_of_birth,
@@ -213,7 +217,7 @@ export function toInput(form: FormState, clientRef?: string): Omit<ParticipantIn
 export const STEPS = ["Identification", "Personal details", "Location", "Inclusion", "Consent"];
 export const STEP_FIELDS: string[][] = [
   ["full_name", "national_id", "kebele_id"],
-  ["date_of_birth", "sex", "phone", "email", "education_level", "marital_status", "family_size"],
+  ["date_of_birth", "sex", "nationality", "phone", "email", "education_level", "marital_status", "family_size"],
   ["region", "zone", "woreda", "woreda_other", "kebele"],
   ["vulnerability_category", "vulnerability_other", "disability", "disability_type", "disability_other"],
   ["consent_given", "notes"],

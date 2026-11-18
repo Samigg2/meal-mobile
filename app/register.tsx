@@ -74,6 +74,8 @@ export default function Register() {
   const [kebeleId, setKebeleId] = useState("");
   const [idToken, setIdToken] = useState("");
   const [idMock, setIdMock] = useState(false);
+  // Not asked on this form: sent as Fayida holds them, with the check.
+  const [idExtras, setIdExtras] = useState<{ nationality?: string }>({});
 
   const [fullName, setFullName] = useState("");
   const [sex, setSex] = useState<"male" | "female" | undefined>();
@@ -106,6 +108,7 @@ export default function Register() {
       setIdMock(r.source === "mock");
       // Fill in what is still empty from the ID record.
       const d = r.data;
+      setIdExtras({ nationality: d.nationality });
       if (d.full_name && !fullName.trim()) setFullName(d.full_name);
       if (d.date_of_birth && !dob) setDob(d.date_of_birth);
       if (d.sex && !sex) setSex(d.sex);
@@ -154,6 +157,7 @@ export default function Register() {
         consent_given: true,
         verification_token: phoneToken,
         fayida_token: idToken && nationalId.trim() ? idToken : undefined,
+        ...(idToken && nationalId.trim() ? idExtras : {}),
       }),
     onSuccess: async (r) => {
       await savedRegistration.set(r.status_token);

@@ -60,6 +60,7 @@ function formFromInput(p: ParticipantInput): FormState {
   return {
     ...EMPTY,
     full_name: p.full_name,
+    nationality: p.nationality ?? "",
     national_id: p.national_id ?? "",
     kebele_id: p.kebele_id ?? "",
     date_of_birth: p.date_of_birth,
@@ -189,6 +190,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
       return {
         ...prev,
         full_name: prev.full_name || data.full_name || "",
+        nationality: prev.nationality || data.nationality || "",
         date_of_birth: prev.date_of_birth || data.date_of_birth || "",
         sex: prev.sex ?? data.sex,
         region,
@@ -430,6 +432,13 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
             ]}
             onChange={(v) => update("sex", v, true)}
             error={errors.sex}
+          />
+          <Field
+            label="Nationality"
+            value={form.nationality}
+            onChangeText={(v) => update("nationality", v)}
+            placeholder="e.g. Ethiopian"
+            autoCapitalize="words"
           />
           <Field
             label="Phone"

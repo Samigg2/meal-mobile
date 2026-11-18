@@ -217,6 +217,8 @@ export const listTrainingPage = (q: PageQuery) => api.get<Page<TrainingEventRow>
 export interface ParticipantInput {
   participant_id?: string;
   full_name: string;
+  /** Self-declared nationality, as on the Fayida ID. */
+  nationality?: string;
   /** Exactly 12 characters when given. */
   national_id?: string;
   kebele_id?: string;

@@ -58,6 +58,7 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
   return {
     ...EMPTY,
     full_name: p.full_name,
+    nationality: p.nationality ?? "",
     national_id: p.national_id ?? "",
     kebele_id: p.kebele_id ?? "",
     date_of_birth: p.date_of_birth ?? "",
@@ -355,6 +356,13 @@ function EditForm({
             ]}
             onChange={(v) => update("sex", v, true)}
             error={errors.sex}
+          />
+          <Field
+            label="Nationality"
+            value={form.nationality}
+            onChangeText={(v) => update("nationality", v)}
+            placeholder="e.g. Ethiopian"
+            autoCapitalize="words"
           />
           <Field
             label="Phone"
