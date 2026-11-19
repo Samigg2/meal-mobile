@@ -124,6 +124,22 @@ export interface AuditLogRow {
   organization_id: string | null;
 }
 
+export interface BackgroundJobRow {
+  id: string;
+  kind: string;
+  status: string;
+  created_by: string;
+  total: number;
+  done: number;
+  payload: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  heartbeat_at: string | null;
+  finished_at: string | null;
+}
+
 export interface CustomFieldDefRow {
   id: string;
   organization_id: string | null;
@@ -319,6 +335,42 @@ export interface EnterpriseRow {
   review_note: string | null;
   submitted_by: string | null;
   client_ref: string | null;
+  enterprise_size: string | null;
+  has_bylaw: boolean | null;
+  has_business_plan: boolean | null;
+  has_certificate: boolean | null;
+  certificate_kind: string | null;
+  premises: string | null;
+  ownership_type: string | null;
+  formation: string | null;
+  supported_by: string | null;
+  supported_by_other: string | null;
+  started_business: boolean | null;
+  business_start_date: string | null;
+  initial_capital: number | null;
+  baseline_revenue: number | null;
+  members_female: number | null;
+  members_male: number | null;
+  members_pwd: number | null;
+  members_returnee: number | null;
+  members_idp: number | null;
+  rayee_pathway: string | null;
+  employment_profile: string | null;
+  yiw_pathway: string | null;
+  existing_business_type: string | null;
+  value_chain: string | null;
+  sub_business_types: string[] | null;
+  value_chain_function: string | null;
+  youth_led: boolean | null;
+  women_led: boolean | null;
+  pwd_led: boolean | null;
+  returnee_led: boolean | null;
+  idp_led: boolean | null;
+  contact_participant_id: string | null;
+  contact_role: string | null;
+  in_eysla: boolean | null;
+  clustering_name: string | null;
+  is_model: boolean | null;
 }
 
 export interface EvaluationRow {
@@ -775,10 +827,9 @@ export interface ParticipantRow {
   enterprise_id: string | null;
   education_level: string | null;
   marital_status: string | null;
-  disability_type: string | null;
+  disability_type: string[] | null;
   family_size: number | null;
   is_youth: boolean;
-  vulnerability_category: string | null;
   consent_given: boolean;
   consent_date: string | null;
   consent_version: string | null;
@@ -796,7 +847,31 @@ export interface ParticipantRow {
   national_id_check: string | null;
   submitted_by: string | null;
   disability_type_other: string | null;
-  vulnerability_category_other: string | null;
+  has_fayida: boolean | null;
+  labour_id: string | null;
+  first_name: string | null;
+  father_name: string | null;
+  grandfather_name: string | null;
+  registration_date: string;
+  residence_type: string | null;
+  alternative_phone: string | null;
+  field_of_study: string | null;
+  agri_experience: string | null;
+  employment_preference: string | null;
+  lead_firm_id: string | null;
+  priority_1: string | null;
+  priority_2: string | null;
+  priority_3: string | null;
+  target_status: string | null;
+  female_headed: boolean | null;
+  has_dependents: boolean | null;
+  dependents_count: number | null;
+  children_under_5: number | null;
+  registration_site: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  full_name_am: string | null;
+  nationality: string | null;
 }
 
 export interface PartnershipRow {
