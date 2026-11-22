@@ -268,6 +268,22 @@ export interface EmpowermentRecordRow {
   other_women_count: number;
 }
 
+export interface EnterpriseMemberRow {
+  id: string;
+  organization_id: string | null;
+  enterprise_id: string;
+  participant_id: string;
+  role: string;
+  is_founder: boolean;
+  capital_contribution: number | null;
+  joined_on: string;
+  left_on: string | null;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EnterprisePerformanceRow {
   id: string;
   enterprise_id: string;
@@ -1079,6 +1095,41 @@ export interface SbccActivityRow {
   evaluation_sample_size: number | null;
 }
 
+export interface ServiceProviderRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  provider_name: string;
+  organisation_name: string | null;
+  signed_code_of_conduct: boolean;
+  provider_category: string;
+  provider_category_other: string | null;
+  intervention_category: string | null;
+  intervention_category_other: string | null;
+  intervention_types: string[];
+  intervention_type_other: string | null;
+  service_types: string[];
+  service_type_other: string | null;
+  lsp_categories: string[];
+  region: string;
+  zone: string;
+  woreda: string;
+  kebele: string | null;
+  service_woredas: string[];
+  agreement_start_date: string | null;
+  agreement_end_date: string | null;
+  agreement_signed_date: string | null;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  sex: string | null;
+  status: string;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SupportNetworkMemberRow {
   id: string;
   organization_id: string | null;
@@ -1204,6 +1255,7 @@ export interface TrainerRow {
   updated_at: string;
   organization_id: string | null;
   active: boolean;
+  service_provider_id: string | null;
 }
 
 export interface TrainingAssessmentRow {
