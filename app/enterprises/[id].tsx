@@ -11,6 +11,7 @@ import {
   ChevronRight,
   HandCoins,
   Pencil,
+  Presentation,
   Store,
   UserRound,
 } from "lucide-react-native";
@@ -193,6 +194,24 @@ export default function EnterpriseDetail() {
               router.push({
                 pathname: "/finance/loan",
                 params: { enterprise: e.id, enterpriseName: e.enterprise_name },
+              })
+            }
+          />
+        </Card>
+      ) : null}
+
+      {/* DMIS F02D: a business development service, by you or an LSP. */}
+      {can("enterprises", "write") && e.review_status === "approved" ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Business development services</Text>
+          <Button
+            title="Record a BDS service"
+            icon={Presentation}
+            variant="outline"
+            onPress={() =>
+              router.push({
+                pathname: "/enterprises/bds",
+                params: { id: e.id, name: e.enterprise_name },
               })
             }
           />

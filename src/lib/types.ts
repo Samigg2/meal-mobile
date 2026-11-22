@@ -140,6 +140,26 @@ export interface BackgroundJobRow {
   finished_at: string | null;
 }
 
+export interface BdsServiceRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  service_type: string;
+  service_type_other: string | null;
+  service_date: string;
+  provider_kind: string;
+  staff_user_id: string | null;
+  service_provider_id: string | null;
+  actions_provided: string;
+  enterprise_measures: string | null;
+  next_follow_up_date: string | null;
+  client_ref: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CustomFieldDefRow {
   id: string;
   organization_id: string | null;
@@ -268,6 +288,25 @@ export interface EmpowermentRecordRow {
   other_women_count: number;
 }
 
+export interface EnterpriseCashEntryRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  entry_date: string;
+  cash_in: number;
+  cash_out: number;
+  description: string;
+  unit: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  total_price: number | null;
+  receipt_ref: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface EnterpriseMemberRow {
   id: string;
   organization_id: string | null;
@@ -280,6 +319,36 @@ export interface EnterpriseMemberRow {
   left_on: string | null;
   notes: string | null;
   created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnterpriseMonthlySummaryRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  month: string;
+  opening_balance: number;
+  opening_typed: boolean;
+  total_received: number;
+  total_paid: number;
+  closing_balance: number | null;
+  sales_revenue: number;
+  other_income: number;
+  direct_costs: number;
+  gross_margin: number | null;
+  other_expenses: number;
+  operating_surplus: number | null;
+  receivables: number;
+  payables: number;
+  closing_stock_value: number | null;
+  loans_received: number;
+  loans_repaid: number;
+  notes: string | null;
+  status: string;
+  locked_by: string | null;
+  locked_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -313,6 +382,78 @@ export interface EnterprisePerformanceRow {
   created_at: string;
   updated_at: string;
   client_ref: string | null;
+  enterprise_status: string | null;
+  status_reason: string | null;
+  registration_status: string | null;
+  enterprise_size: string | null;
+  improved_business_plan: boolean | null;
+  rayee_pathway: string | null;
+  employment_profile: string | null;
+  value_chains: string[] | null;
+  sub_business_types: string[] | null;
+  value_chain_functions: string[] | null;
+  additional_initial_package: boolean | null;
+  own_contribution: boolean | null;
+  own_contribution_amount: number | null;
+  loan_received: boolean | null;
+  loan_amount: number | null;
+  grant_received: boolean | null;
+  grant_amount: number | null;
+  production_cycles: number | null;
+  sales_volume: number | null;
+  leadership_changed: boolean | null;
+  youth_led: boolean | null;
+  pwd_led: boolean | null;
+  idp_led: boolean | null;
+  returnee_led: boolean | null;
+  lead_participant_id: string | null;
+  contact_participant_id: string | null;
+  contact_role: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  youth_employees_disability: number;
+  intervention_types: string[] | null;
+  intervention_other: string | null;
+  market_expansion_type: string | null;
+  market_expansion_other: string | null;
+  market_expansion_how: string | null;
+}
+
+export interface EnterpriseProductionCostRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  entry_date: string;
+  batch: string | null;
+  cost_item: string;
+  unit: string | null;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number | null;
+  payment_terms: string;
+  supplier_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnterpriseProductionSaleRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  entry_date: string;
+  product: string;
+  unit: string | null;
+  batch: string | null;
+  opening_stock: number | null;
+  produced: number;
+  quantity_sold: number;
+  unit_price: number | null;
+  sales_amount: number | null;
+  buyer_notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface EnterpriseRow {

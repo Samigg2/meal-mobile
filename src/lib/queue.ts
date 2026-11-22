@@ -38,7 +38,8 @@ export type QueuedKind =
   | "safeguarding_edit"
   | "document_photo"
   | "weo_service"
-  | "yiw_follow_up";
+  | "yiw_follow_up"
+  | "bds_service";
 
 export interface QueuedItem {
   id: string;
@@ -109,6 +110,7 @@ const ROUTES: Record<QueuedKind, Route> = {
     form: "/youth-in-work/follow-up",
   },
   weo_service: { method: "post", path: () => "/work-enabling-services", what: "Work-enabling service", form: "/outreach/new" },
+  bds_service: { method: "post", path: () => "/bds-services", what: "BDS service", form: "/enterprises/bds" },
   activity_progress: {
     method: "patch",
     path: (id) => `/monitoring/activities/${id}/progress`,

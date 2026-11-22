@@ -134,10 +134,84 @@ export const enterprisesCopy = listCopy<EnterpriseRow>("enterprises", listEnterp
 export const getEnterprise = (id: string) =>
   cachedFetch(`enterprise:${id}`, () => api.get<EnterpriseRow>(`/enterprises/${id}`), { secret: true });
 
-export type PerformanceVisit = EnterprisePerformanceRow & {
-  verified_by_name: string | null;
-  created_by_name: string | null;
-};
+/**
+ * DMIS F02B, Enterprise follow-up (backend migration 0121): what a visit
+ * gained. Written out here until types.ts is regenerated.
+ */
+export interface FollowUpFields {
+  enterprise_status: string | null;
+  status_reason: string | null;
+  registration_status: string | null;
+  enterprise_size: string | null;
+  improved_business_plan: boolean | null;
+  rayee_pathway: string | null;
+  employment_profile: string | null;
+  value_chains: string[] | null;
+  sub_business_types: string[] | null;
+  value_chain_functions: string[] | null;
+  additional_initial_package: boolean | null;
+  own_contribution: boolean | null;
+  own_contribution_amount: number | null;
+  loan_received: boolean | null;
+  loan_amount: number | null;
+  grant_received: boolean | null;
+  grant_amount: number | null;
+  production_cycles: number | null;
+  sales_volume: number | null;
+  leadership_changed: boolean | null;
+  youth_led: boolean | null;
+  pwd_led: boolean | null;
+  idp_led: boolean | null;
+  returnee_led: boolean | null;
+  lead_participant_id: string | null;
+  contact_participant_id: string | null;
+  contact_role: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  youth_employees_disability: number;
+  intervention_types: string[] | null;
+  intervention_other: string | null;
+  market_expansion_type: string | null;
+  market_expansion_other: string | null;
+  market_expansion_how: string | null;
+}
+
+export type PerformanceVisit = EnterprisePerformanceRow &
+  Partial<FollowUpFields> & {
+    verified_by_name: string | null;
+    created_by_name: string | null;
+    /** The F02B lead's and contact's names, and the lead's age at the period's end. */
+    lead_name?: string | null;
+    lead_age?: number | null;
+    contact_name?: string | null;
+  };
+
+/** What a new F02B visit starts from: the latest visit, else the enterprise's F02A registration. */
+export interface FollowUpPrefill {
+  source: "follow_up" | "registration";
+  period_label: string | null;
+  values: Partial<FollowUpFields> & {
+    employees_male?: number | null;
+    employees_female?: number | null;
+    employees_disability?: number | null;
+    youth_employees_male?: number | null;
+    youth_employees_female?: number | null;
+    markets_count?: number | null;
+    products_count?: number | null;
+    main_markets?: string | null;
+    lead_name?: string | null;
+    lead_age?: number | null;
+    contact_name?: string | null;
+  };
+}
+
+/** Kept on the phone once opened, so a visit filled offline still starts from the last one. */
+export const getFollowUpPrefill = (id: string) =>
+  cachedFetch(
+    `enterprise-follow-up-prefill:${id}`,
+    async () => (await api.get<{ prefill?: FollowUpPrefill }>(`/enterprises/${id}/performance`)).prefill ?? null,
+    { secret: true },
+  );
 
 /** An enterprise's visits (performance records), newest first, as the web's Performance panel shows them. */
 export const getEnterprisePerformance = (id: string) =>
@@ -787,6 +861,42 @@ export interface PerformanceInput {
   data_source: string;
   notes?: string;
   client_ref: string;
+  /** DMIS F02B (0121); a visit queued before F02B has none of them. */
+  enterprise_status?: string | null;
+  status_reason?: string | null;
+  registration_status?: string | null;
+  enterprise_size?: string | null;
+  improved_business_plan?: boolean | null;
+  rayee_pathway?: string | null;
+  employment_profile?: string | null;
+  value_chains?: string[];
+  sub_business_types?: string[];
+  value_chain_functions?: string[];
+  additional_initial_package?: boolean | null;
+  own_contribution?: boolean | null;
+  own_contribution_amount?: number | null;
+  loan_received?: boolean | null;
+  loan_amount?: number | null;
+  grant_received?: boolean | null;
+  grant_amount?: number | null;
+  production_cycles?: number | null;
+  sales_volume?: number | null;
+  leadership_changed?: boolean | null;
+  youth_led?: boolean | null;
+  pwd_led?: boolean | null;
+  idp_led?: boolean | null;
+  returnee_led?: boolean | null;
+  lead_participant_id?: string | null;
+  contact_participant_id?: string | null;
+  contact_role?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  youth_employees_disability?: number;
+  intervention_types?: string[];
+  intervention_other?: string | null;
+  market_expansion_type?: string | null;
+  market_expansion_other?: string | null;
+  market_expansion_how?: string | null;
 }
 
 /* -------------------------------- finance -------------------------------- */
