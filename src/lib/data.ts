@@ -241,11 +241,35 @@ export interface ParticipantInput {
   phone: string;
   email?: string;
   disability?: boolean;
-  disability_type?: string;
+  /** F01-27: the impairments ticked (older builds sent one code). */
+  disability_type?: string[] | string;
+  disability_type_other?: string;
   education_level?: string;
   marital_status?: string;
   family_size?: number;
-  vulnerability_category?: string;
+  // DMIS F01 (backend migrations 0112-0116); a new staff registration needs them.
+  has_fayida?: boolean;
+  labour_id?: string;
+  first_name?: string;
+  father_name?: string;
+  grandfather_name?: string;
+  field_of_study?: string;
+  target_status?: "idp" | "returnee" | "neither";
+  female_headed?: boolean;
+  has_dependents?: boolean;
+  dependents_count?: number | null;
+  children_under_5?: number | null;
+  residence_type?: string;
+  alternative_phone?: string;
+  registration_site?: string;
+  gps_lat?: number | null;
+  gps_lng?: number | null;
+  agri_experience?: string;
+  employment_preference?: "self" | "wage";
+  lead_firm_id?: string;
+  priority_1?: string;
+  priority_2?: string;
+  priority_3?: string;
   /** The API accepts only these two on create. */
   status?: "active" | "inactive";
   /** Must be true: the API refuses a registration without informed consent. */

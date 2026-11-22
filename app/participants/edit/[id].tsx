@@ -1,7 +1,5 @@
 import { useRef, useState } from "react";
-import { useRegionChoices } from "@/lib/region-lock";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getParticipantDetail, type ParticipantInput } from "@/lib/data";
@@ -11,87 +9,34 @@ import { type Targeted } from "@/lib/queue";
 import { saveOrQueue, useQueuedPayload } from "@/lib/field-form";
 import { SavedNotice } from "@/components/field-form";
 import {
-  EMPTY,
-  OTHER,
-  localPhone,
-  ageOn,
-  isRealDate,
+  fromRecord,
   STEP_FIELDS,
   STEPS,
   stepOf,
-  todayISO,
   toInput,
   validate,
-  yearsAgo,
   type FormErrors,
   type FormState,
 } from "@/lib/participant-form";
-import { useLocations, useLookupOptions, useSettings, type Option } from "@/lib/reference";
-import {
-  Badge,
-  Button,
-  ChoiceRow,
-  EmptyState,
-  ErrorText,
-  Field,
-  ListSkeleton,
-  Section,
-  Select,
-  StepBar,
-  StickyFooter,
-  Text,
-  Toggle,
-} from "@/components/ui";
-import { DateField } from "@/components/date-picker";
+import { useLocations, useSettings } from "@/lib/reference";
+import { Button, EmptyState, ErrorText, ListSkeleton, StepBar, StickyFooter, Text } from "@/components/ui";
+import { ParticipantFields } from "@/components/participant-fields";
 import { colors, spacing } from "@/lib/theme";
 
 /**
- * The same shape edited, the same validation as registration
- * (@/lib/participant-form). `woredasOf` decides the same "Other (type it)"
- * split the registration form uses: a stored woreda not in the reference
- * list for its zone goes into woreda_other instead, so it stays editable as
- * free text rather than silently not matching any option.
+ * Editing a participant: the same DMIS F01 fields and rules as registration
+ * (@/lib/participant-form), checked in "edit" mode so a record from before F01
+ * can still have one field corrected without filling in every new one. A
+ * stored woreda not in the reference list for its zone stays editable as text.
  */
-function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormState {
-  const zoneWoredas = woredasOf(p.zone ?? "");
-  const listed = !p.woreda || zoneWoredas.some((w) => w.value === p.woreda);
-  return {
-    ...EMPTY,
-    full_name: p.full_name,
-    nationality: p.nationality ?? "",
-    national_id: p.national_id ?? "",
-    kebele_id: p.kebele_id ?? "",
-    date_of_birth: p.date_of_birth ?? "",
-    sex: p.sex ?? undefined,
-    region: p.region ?? "",
-    zone: p.zone ?? "",
-    woreda: listed ? (p.woreda ?? "") : "",
-    woreda_other: "",
-    kebele: p.kebele ?? "",
-    phone: localPhone(p.phone),
-    email: p.email ?? "",
-    education_level: p.education_level ?? "",
-    marital_status: p.marital_status ?? "",
-    family_size: p.family_size != null ? String(p.family_size) : "",
-    // Dropped on the server by F01 (migration 0112, replaced by target status and
-    // female-headed household); read only when an older copy still carries it.
-    vulnerability_category: (p as { vulnerability_category?: string | null }).vulnerability_category ?? "",
-    disability: !!p.disability,
-    disability_type: p.disability_type ?? "",
-    consent_given: p.consent_given,
-    notes: p.notes ?? "",
-  };
-}
 
 /**
  * A change made with no connection waits on the phone as only the fields that
- * changed, so it does not undo what the office changed meanwhile in the
- * others. It keeps the record as it was (`_before`, never sent) so it can be
- * opened again from Sync without a connection.
- */
-/**
- * `expected_updated_at`: when the record was last changed as this form saw it, so a
- * change someone made since (while this waited offline) is not overwritten (409).
+ * changed, so it does not undo what the office changed meanwhile in the others.
+ * It keeps the record as it was (`_before`, never sent) so it can be opened
+ * again from Sync without a connection. `expected_updated_at`: when the record
+ * was last changed as this form saw it, so a change made since is not
+ * overwritten (409).
  */
 type QueuedEdit = Targeted<{
   participant: Partial<ParticipantInput>;
@@ -103,7 +48,8 @@ type QueuedEdit = Targeted<{
 function changedFields(before: Partial<ParticipantInput>, after: Partial<ParticipantInput>): Partial<ParticipantInput> {
   const changed: Record<string, unknown> = {};
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof ParticipantInput>) {
-    if (key === "client_ref") continue;
+    // Not edited here: the server keeps consent and builds full_name from the three names.
+    if (key === "client_ref" || key === "consent_given") continue;
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changed[key] = after[key] ?? "";
   }
   return changed as Partial<ParticipantInput>;
@@ -124,9 +70,7 @@ export default function EditParticipant() {
   // version; offline, the copy the change was made on.
   if (queued.payload) {
     const { _before, participant } = queued.payload;
-    return (
-      <EditForm id={id} participant={data?.participant ?? _before} pending={participant} queuedId={queued.queuedId} />
-    );
+    return <EditForm id={id} participant={data?.participant ?? _before} pending={participant} queuedId={queued.queuedId} />;
   }
   if (isError || !data) {
     return (
@@ -142,7 +86,7 @@ export default function EditParticipant() {
 
 /**
  * Mounted only once the record has loaded, so its form state initializes from
- * the real data in one pass — no effect needed to fill it in after the fact.
+ * the real data in one pass, with no effect needed to fill it in after the fact.
  */
 function EditForm({
   id,
@@ -160,36 +104,20 @@ function EditForm({
   const queryClient = useQueryClient();
   const scroll = useRef<ScrollView>(null);
   const locations = useLocations();
+  const settings = useSettings();
+  const original = () => fromRecord(participant as unknown as Record<string, unknown>, locations.woredasOf);
   const [form, setForm] = useState<FormState>(() =>
-    toForm({ ...participant, ...(pending as Partial<ParticipantRow>) }, locations.woredasOf),
+    fromRecord({ ...participant, ...(pending as Record<string, unknown>) } as Record<string, unknown>, locations.woredasOf),
   );
   const [errors, setErrors] = useState<FormErrors>({});
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [queuedNotice, setQueuedNotice] = useState(false);
-
-  const education = useLookupOptions("participants.education_level");
-  const marital = useLookupOptions("participants.marital_status");
-  const vulnerability = useLookupOptions("participants.vulnerability_category");
-  const disability = useLookupOptions("participants.disability_type");
-  const settings = useSettings();
-  const youthBand = `${settings.youth_min_age}–${settings.youth_max_age}`;
-  const regionChoices = useRegionChoices(form.region);
-  // A cluster's own region is filled in for it, as on the web (set while
-  // rendering, React's way to adjust state from what was just read).
-  if (regionChoices.locked && !form.region) setForm((p) => (p.region ? p : { ...p, region: regionChoices.locked! }));
-  const zones = locations.zonesOf(form.region);
-  const woredas = locations.woredasOf(form.zone);
-  // Woreda coverage in reference data is partial, so "Other" lets a woreda that
-  // is not listed yet be typed rather than blocking the save.
-  const woredaOptions: Option[] = woredas;
-
-  const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
-  const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
+  const woredaListed = (zone: string) => locations.woredasOf(zone).length > 0;
 
   /** The web's rules for one field, shown when it is left or picked (not only on Save). */
   function checkField(key: keyof FormState, next: FormState = form) {
-    const found = validate(next, woredas.length > 0, settings);
+    const found = validate(next, woredaListed(next.zone), settings, "edit");
     const keys: (keyof FormState)[] = key === "national_id" || key === "kebele_id" ? ["national_id", "kebele_id"] : [key];
     setErrors((prev) => {
       const out = { ...prev, form: undefined };
@@ -213,7 +141,7 @@ function EditForm({
   }
 
   function goNext() {
-    const found = validate(form, woredas.length > 0, settings) as Record<string, string>;
+    const found = validate(form, woredaListed(form.zone), settings, "edit") as Record<string, string>;
     const here = Object.fromEntries(Object.entries(found).filter(([k]) => STEP_FIELDS[step].includes(k)));
     if (Object.keys(here).length > 0) {
       showErrors(here as FormErrors);
@@ -229,13 +157,10 @@ function EditForm({
   }
 
   async function handleSave() {
-    const found = validate(form, woredas.length > 0, settings);
+    const found = validate(form, woredaListed(form.zone), settings, "edit");
     if (Object.keys(found).length > 0) {
       const count = Object.keys(found).length;
-      showErrors({
-        ...found,
-        form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.`,
-      });
+      showErrors({ ...found, form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.` });
       const bad = stepOf(found);
       if (bad >= 0) setStep(bad);
       return;
@@ -244,7 +169,7 @@ function EditForm({
     setSaving(true);
     setErrors({});
     try {
-      const changes = changedFields(toInput(toForm(participant, locations.woredasOf)), toInput(form));
+      const changes = changedFields(toInput(original()), toInput(form));
       if (Object.keys(changes).length === 0) {
         router.back();
         return;
@@ -292,249 +217,15 @@ function EditForm({
             Sync screen.
           </Text>
         ) : null}
-
-        {step === 0 ? (
-        <Section title="Identification" icon={IdCard} description="A National ID or a Kebele ID is required.">
-          <Field
-            label="Full name"
-            required
-            value={form.full_name}
-            onChangeText={(v) => update("full_name", v)}
-            autoCapitalize="words"
-            onBlur={() => checkField("full_name")}
-            error={errors.full_name}
-          />
-          <Field
-            label="National ID (Fayida)"
-            value={form.national_id}
-            onChangeText={(v) => update("national_id", v.replace(/\s/g, ""))}
-            placeholder="12-character number"
-            maxLength={12}
-            autoCapitalize="characters"
-            hint="Changing this is checked again for duplicates, the same as registration."
-            onBlur={() => checkField("national_id")}
-            error={errors.national_id}
-          />
-          <Field
-            label="Kebele ID"
-            value={form.kebele_id}
-            onChangeText={(v) => update("kebele_id", v)}
-            placeholder="e.g. KB-2023-445"
-            autoCapitalize="characters"
-            onBlur={() => checkField("kebele_id")}
-            error={errors.kebele_id}
-          />
-        </Section>
-        ) : null}
-
-        {step === 1 ? (
-        <Section title="Personal details" icon={User}>
-          <DateField
-            label="Date of birth"
-            required
-            value={form.date_of_birth}
-            onChange={(v) => update("date_of_birth", v, true)}
-            min={yearsAgo(settings.participant_max_age)}
-            max={yearsAgo(settings.participant_min_age)}
-            initialYear={new Date().getFullYear() - 22}
-            error={errors.date_of_birth}
-            hint={age !== null && !errors.date_of_birth ? `Age ${age}` : undefined}
-          />
-          {age !== null && !errors.date_of_birth ? (
-            <View style={styles.badgeRow}>
-              <Badge
-                text={isYouth ? `Youth (${youthBand})` : `Outside the youth band (${youthBand})`}
-                tone={isYouth ? "success" : "warning"}
-              />
-            </View>
-          ) : null}
-          <ChoiceRow
-            label="Sex"
-            required
-            value={form.sex}
-            options={[
-              { label: "Female", value: "female" },
-              { label: "Male", value: "male" },
-            ]}
-            onChange={(v) => update("sex", v, true)}
-            error={errors.sex}
-          />
-          <Field
-            label="Nationality"
-            value={form.nationality}
-            onChangeText={(v) => update("nationality", v)}
-            placeholder="e.g. Ethiopian"
-            autoCapitalize="words"
-          />
-          <Field
-            label="Phone"
-            required
-            value={form.phone}
-            onChangeText={(v) => update("phone", v)}
-            maxLength={10}
-            keyboardType="phone-pad"
-            onBlur={() => checkField("phone")}
-            error={errors.phone}
-          />
-          <Field
-            label="Email"
-            value={form.email}
-            onChangeText={(v) => update("email", v)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            onBlur={() => checkField("email")}
-            error={errors.email}
-          />
-          <Select
-            label="Education level"
-            value={form.education_level}
-            options={education}
-            onChange={(v) => update("education_level", v)}
-            placeholder="Select education level"
-          />
-          <Select
-            label="Marital status"
-            value={form.marital_status}
-            options={marital}
-            onChange={(v) => update("marital_status", v)}
-            placeholder="Select marital status"
-          />
-          <Field
-            label="Family size"
-            value={form.family_size}
-            onChangeText={(v) => update("family_size", v.replace(/\D/g, ""))}
-            keyboardType="number-pad"
-            maxLength={2}
-            onBlur={() => checkField("family_size")}
-            error={errors.family_size}
-          />
-        </Section>
-        ) : null}
-
-        {step === 2 ? (
-        <Section title="Location" icon={MapPin}>
-          <Select
-            label="Region"
-            required
-            value={form.region}
-            options={regionChoices.regions}
-            onChange={(v) => {
-              setForm((p) => ({ ...p, region: v, zone: "", woreda: "", woreda_other: "" }));
-              checkField("region", { ...form, region: v, zone: "", woreda: "", woreda_other: "" });
-            }}
-            placeholder="Select region"
-            error={errors.region}
-          />
-          {zones.length > 0 ? (
-            <Select
-              label="Zone"
-              required
-              value={form.zone}
-              options={zones}
-              onChange={(v) => {
-                setForm((p) => ({ ...p, zone: v, woreda: "", woreda_other: "" }));
-                checkField("zone", { ...form, zone: v, woreda: "", woreda_other: "" });
-              }}
-              placeholder={form.region ? "Select zone" : "Select the region first"}
-              disabled={!form.region}
-              error={errors.zone}
-            />
-          ) : (
-            <Field
-              label="Zone"
-              required
-              value={form.zone}
-              onChangeText={(v) => update("zone", v)}
-              autoCapitalize="words"
-              error={errors.zone}
-            />
-          )}
-          <Select
-            label="Woreda"
-            required
-            value={form.woreda}
-            options={woredaOptions}
-            onChange={(v) => update("woreda", v, true)}
-            placeholder={form.zone ? "Select woreda" : "Select the zone first"}
-            disabled={!form.zone}
-            error={errors.woreda}
-          />
-          <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
-        </Section>
-        ) : null}
-
-        {step === 3 ? (
-        <Section title="Inclusion" icon={Heart}>
-          <Select
-            label="Vulnerability category"
-            value={form.vulnerability_category}
-            options={vulnerability}
-            onChange={(v) => update("vulnerability_category", v)}
-            placeholder="Select category"
-          />
-          {form.vulnerability_category === OTHER ? (
-            <Field
-              label="Other vulnerability category"
-              required
-              value={form.vulnerability_other}
-              onChangeText={(v) => update("vulnerability_other", v)}
-              onBlur={() => checkField("vulnerability_other")}
-              error={errors.vulnerability_other}
-            />
-          ) : null}
-          <Toggle
-            label="Disability"
-            value={form.disability}
-            onChange={(v) => update("disability", v)}
-          />
-          {form.disability ? (
-            <>
-              <Select
-                label="Disability type"
-                required
-                value={form.disability_type}
-                options={disability}
-                onChange={(v) => update("disability_type", v, true)}
-                placeholder="Select type"
-                error={errors.disability_type}
-              />
-              {form.disability_type === OTHER ? (
-                <Field
-                  label="Other disability"
-                  required
-                  value={form.disability_other}
-                  onChangeText={(v) => update("disability_other", v)}
-                  onBlur={() => checkField("disability_other")}
-                  error={errors.disability_other}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </Section>
-        ) : null}
-
-        {step === 4 ? (
-        <Section title="Consent and notes" icon={ShieldCheck}>
-          <Text style={styles.consentNote}>
-            {"Personal data is collected under Ethiopia's Personal Data Protection Proclamation No. 1321/2024. " +
-              "Before ticking, explain the purpose of the programme, how the data will be used and kept, and that " +
-              "the participant can withdraw consent at any time without losing services."}
-          </Text>
-          <Toggle
-            label="Consent given *"
-            value={form.consent_given}
-            onChange={(v) => update("consent_given", v, true)}
-          />
-          {errors.consent_given ? <Text style={styles.fieldError}>{errors.consent_given}</Text> : null}
-          <Field
-            label="Notes"
-            value={form.notes}
-            onChangeText={(v) => update("notes", v)}
-            placeholder="Additional notes"
-            multiline
-          />
-        </Section>
-        ) : null}
+        <ParticipantFields
+          step={step}
+          form={form}
+          setForm={setForm}
+          update={update}
+          checkField={checkField}
+          errors={errors}
+          consentLocked
+        />
       </ScrollView>
       <StickyFooter>
         <View style={styles.footerRow}>
@@ -560,9 +251,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   footerRow: { flexDirection: "row", gap: spacing.sm },
   grow: { flex: 1 },
-  consentNote: { fontSize: 12, color: colors.muted, lineHeight: 18 },
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
-  fieldError: { fontSize: 12, color: colors.danger, fontWeight: "500" },
   warn: { fontSize: 12, color: colors.warning, lineHeight: 18 },
-  badgeRow: { flexDirection: "row", marginTop: -spacing.xs },
 });

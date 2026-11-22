@@ -32,14 +32,12 @@ export interface RegistrationOptions {
   woredas: ChildOption[];
   education_levels: ListOption[];
   marital_statuses: ListOption[];
-  vulnerability_categories: ListOption[];
 }
 
 /** The optional "about you" answers, each a code from its list. */
 export interface RegistrationAnswers {
   education_level?: string;
   marital_status?: string;
-  vulnerability_category?: string;
 }
 
 export interface RegistrationInput extends RegistrationAnswers {
@@ -96,7 +94,6 @@ export interface RegistrationStatus {
     disability: boolean;
     education_level: string | null;
     marital_status: string | null;
-    vulnerability_category: string | null;
   };
 }
 

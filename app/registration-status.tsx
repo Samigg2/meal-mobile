@@ -170,7 +170,6 @@ function EditDetails({
   const [answers, setAnswers] = useState<RegistrationAnswers>({
     education_level: details.education_level ?? undefined,
     marital_status: details.marital_status ?? undefined,
-    vulnerability_category: details.vulnerability_category ?? undefined,
   });
   const woredaValue = chosenWoreda(options, zone.trim(), woreda, woredaOther);
 

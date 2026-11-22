@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import { useRegionChoices } from "@/lib/region-lock";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { BadgeCheck, CircleCheck, ExternalLink, Heart, IdCard, MapPin, ShieldCheck, User } from "lucide-react-native";
+import { BadgeCheck, CircleCheck, ExternalLink } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { checkParticipantDuplicate, createParticipant, type ParticipantInput } from "@/lib/data";
@@ -11,43 +10,26 @@ import { enqueue, removeFromQueue, shouldQueue, updateQueued } from "@/lib/queue
 import { useQueuedPayload } from "@/lib/field-form";
 import {
   EMPTY,
-  OTHER,
-  ageOn,
-  isRealDate,
+  fromRecord,
   newRef,
+  splitName,
   STEP_FIELDS,
   STEPS,
   stepOf,
-  todayISO,
   toInput,
   validate,
-  yearsAgo,
   type FormState,
 } from "@/lib/participant-form";
-import { useLocations, useLookupOptions, useSettings, type Option } from "@/lib/reference";
-import {
-  Badge,
-  Button,
-  Card,
-  ChoiceRow,
-  ErrorText,
-  Field,
-  ListSkeleton,
-  Section,
-  Select,
-  StepBar,
-  StickyFooter,
-  Text,
-  Toggle,
-} from "@/components/ui";
-import { DateField } from "@/components/date-picker";
+import { useLocations, useSettings } from "@/lib/reference";
+import { Button, Card, ErrorText, ListSkeleton, StepBar, StickyFooter, Text } from "@/components/ui";
+import { ParticipantFields } from "@/components/participant-fields";
 import { colors, radius, spacing } from "@/lib/theme";
 
 /**
- * Participant registration. The same rules as the web form and the API
- * (participants.schemas.ts), checked here first so a field officer can fix
- * everything before submitting — including offline, where the server cannot be
- * asked. Every list comes from reference data cached on the device.
+ * Participant registration (DMIS F01). The same rules as the web form and the
+ * API (participants.schemas.ts: a staff registration needs the F01 mandatory
+ * fields), checked here first so a field officer can fix everything before
+ * submitting, including offline, where the server cannot be asked.
  */
 
 type Errors = Partial<Record<keyof FormState | "form", string>>;
@@ -55,40 +37,19 @@ type Errors = Partial<Record<keyof FormState | "form", string>>;
 /** A waiting registration keeps the form as it was filled (`_form`, never sent), to open it again from Sync. */
 type QueuedRegistration = ParticipantInput & { _form?: FormState };
 
-/** A registration queued before `_form` was kept: its fields put back as typed. */
-function formFromInput(p: ParticipantInput): FormState {
-  return {
-    ...EMPTY,
-    full_name: p.full_name,
-    nationality: p.nationality ?? "",
-    national_id: p.national_id ?? "",
-    kebele_id: p.kebele_id ?? "",
-    date_of_birth: p.date_of_birth,
-    sex: p.sex,
-    region: p.region,
-    zone: p.zone,
-    woreda: p.woreda,
-    woreda_other: "",
-    kebele: p.kebele ?? "",
-    phone: p.phone,
-    email: p.email ?? "",
-    disability: !!p.disability,
-    consent_given: p.consent_given,
-    notes: p.notes ?? "",
-  };
-}
-
 export default function NewParticipant() {
   const queued = useQueuedPayload<QueuedRegistration>();
+  const locations = useLocations();
   if (!queued.ready) return <ListSkeleton rows={3} />;
   const waiting = queued.payload;
-  return (
-    <RegistrationForm
-      initial={waiting ? (waiting._form ?? formFromInput(waiting)) : EMPTY}
-      initialRef={waiting?.client_ref}
-      queuedId={waiting ? queued.queuedId : undefined}
-    />
-  );
+  // A registration queued before this form (no `_form`, or one without the F01
+  // fields) opens with what it had; the rest is asked before it can be sent.
+  const initial = waiting
+    ? waiting._form && "first_name" in waiting._form
+      ? waiting._form
+      : fromRecord(waiting as unknown as Record<string, unknown>, locations.woredasOf)
+    : EMPTY;
+  return <RegistrationForm initial={initial} initialRef={waiting?.client_ref} queuedId={waiting ? queued.queuedId : undefined} />;
 }
 
 function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormState; initialRef?: string; queuedId?: string }) {
@@ -110,29 +71,13 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   const [idError, setIdError] = useState<string | null>(null);
   const [verifiedId, setVerifiedId] = useState<{ id: string; mock: boolean; token: string } | null>(null);
 
-  const education = useLookupOptions("participants.education_level");
-  const marital = useLookupOptions("participants.marital_status");
-  const vulnerability = useLookupOptions("participants.vulnerability_category");
-  const disability = useLookupOptions("participants.disability_type");
   const locations = useLocations();
   const settings = useSettings();
-  const youthBand = `${settings.youth_min_age}–${settings.youth_max_age}`;
-  const regionChoices = useRegionChoices(form.region);
-  // A cluster's own region is filled in for it, as on the web (set while
-  // rendering, React's way to adjust state from what was just read).
-  if (regionChoices.locked && !form.region) setForm((p) => (p.region ? p : { ...p, region: regionChoices.locked! }));
-  const zones = locations.zonesOf(form.region);
-  const woredas = locations.woredasOf(form.zone);
-  // Woreda coverage in reference data is partial, so "Other" lets a woreda that
-  // is not listed yet be typed rather than blocking the registration.
-  const woredaOptions: Option[] = woredas;
-
-  const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
-  const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
+  const woredaListed = () => locations.woredasOf(form.zone).length > 0;
 
   /** The web's rules for one field, shown when it is left or picked (not only on Save). */
   function checkField(key: keyof FormState, next: FormState = form) {
-    const found = validate(next, woredas.length > 0, settings);
+    const found = validate(next, locations.woredasOf(next.zone).length > 0, settings);
     const keys: (keyof FormState)[] = key === "national_id" || key === "kebele_id" ? ["national_id", "kebele_id"] : [key];
     setErrors((prev) => {
       const out = { ...prev, form: undefined };
@@ -182,21 +127,21 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
       const region = prev.region || data.region || "";
       const zone = prev.zone || (region === (data.region ?? "") ? (data.zone ?? "") : "");
       let woreda = prev.woreda;
-      let woredaOther = prev.woreda_other;
       if (!woreda && data.woreda && zone === (data.zone ?? "")) {
-        const listed = locations.woredasOf(zone).some((w) => w.value === data.woreda);
-        if (listed) woreda = data.woreda;
+        if (locations.woredasOf(zone).some((w) => w.value === data.woreda)) woreda = data.woreda;
       }
+      // Fayida gives one name: it fills the three boxes when none is typed yet.
+      const named = !prev.first_name && !prev.father_name && data.full_name ? splitName(data.full_name) : {};
       return {
         ...prev,
-        full_name: prev.full_name || data.full_name || "",
+        ...named,
+        has_fayida: "yes",
         nationality: prev.nationality || data.nationality || "",
         date_of_birth: prev.date_of_birth || data.date_of_birth || "",
         sex: prev.sex ?? data.sex,
         region,
         zone,
         woreda,
-        woreda_other: woredaOther,
         kebele: prev.kebele || data.kebele || "",
         phone: prev.phone || data.phone || "",
       };
@@ -210,7 +155,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   }
 
   function goNext() {
-    const found = validate(form, woredas.length > 0, settings) as Record<string, string>;
+    const found = validate(form, woredaListed(), settings) as Record<string, string>;
     const here = Object.fromEntries(Object.entries(found).filter(([k]) => STEP_FIELDS[step].includes(k)));
     if (Object.keys(here).length > 0) {
       showErrors(here as Errors);
@@ -237,7 +182,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   }
 
   async function handleSave() {
-    const found = validate(form, woredas.length > 0, settings);
+    const found = validate(form, woredaListed(), settings);
     if (Object.keys(found).length > 0) {
       const count = Object.keys(found).length;
       showErrors({ ...found, form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.` });
@@ -314,6 +259,27 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
     );
   }
 
+  const identitySlot =
+    verifiedId && verifiedId.id === form.national_id ? (
+      <View style={styles.verified}>
+        <BadgeCheck size={18} color={colors.success} />
+        <Text style={styles.verifiedText}>
+          {verifiedId.mock
+            ? "Checked on the Fayida test page (not a real check). Empty fields were filled in."
+            : "Verified by Fayida. Empty fields were filled in from the ID record."}
+        </Text>
+      </View>
+    ) : form.national_id.length === 12 ? (
+      <View style={styles.otpBox}>
+        <Text style={styles.otpMessage}>
+          Verify the ID on Fayida&apos;s page: the participant enters the ID and the code Fayida sends to their phone,
+          then the app comes back here with their details filled in.
+        </Text>
+        {idError ? <Text style={styles.fieldError}>{idError}</Text> : null}
+        <Button title="Verify with Fayida" icon={ExternalLink} variant="outline" onPress={handleCheckId} loading={checking} />
+      </View>
+    ) : null;
+
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -335,286 +301,15 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
             Sync screen.
           </Text>
         ) : null}
-
-        {step === 0 ? (
-        <Section title="Identification" icon={IdCard} description="A National ID or a Kebele ID is required.">
-          <Field
-            label="Full name"
-            required
-            value={form.full_name}
-            onChangeText={(v) => update("full_name", v)}
-            placeholder="Given name, father's name, grandfather's name"
-            autoCapitalize="words"
-            onBlur={() => checkField("full_name")}
-            error={errors.full_name}
-          />
-          <Field
-            label="National ID (Fayida)"
-            value={form.national_id}
-            onChangeText={(v) => {
-              update("national_id", v.replace(/\s/g, ""));
-              setIdError(null);
-            }}
-            placeholder="12-character number"
-            maxLength={12}
-            autoCapitalize="characters"
-            editable={!checking}
-            onBlur={() => checkField("national_id")}
-            error={errors.national_id}
-          />
-          {verifiedId && verifiedId.id === form.national_id ? (
-            <View style={styles.verified}>
-              <BadgeCheck size={18} color={colors.success} />
-              <Text style={styles.verifiedText}>
-                {verifiedId.mock
-                  ? "Checked on the Fayida test page (not a real check). Empty fields were filled in."
-                  : "Verified by Fayida. Empty fields were filled in from the ID record."}
-              </Text>
-            </View>
-          ) : form.national_id.length === 12 ? (
-            <View style={styles.otpBox}>
-              <Text style={styles.otpMessage}>
-                Verify the ID on Fayida&apos;s page: the participant enters the ID and the code Fayida sends to their
-                phone, then the app comes back here with their details filled in.
-              </Text>
-              {idError ? <Text style={styles.fieldError}>{idError}</Text> : null}
-              <Button
-                title="Verify with Fayida"
-                icon={ExternalLink}
-                variant="outline"
-                onPress={handleCheckId}
-                loading={checking}
-              />
-            </View>
-          ) : null}
-          <Field
-            label="Kebele ID"
-            value={form.kebele_id}
-            onChangeText={(v) => update("kebele_id", v)}
-            placeholder="e.g. KB-2023-445"
-            autoCapitalize="characters"
-            hint="Required if there is no National ID. Attach a scan later from the participant's record."
-            onBlur={() => checkField("kebele_id")}
-            error={errors.kebele_id}
-          />
-        </Section>
-        ) : null}
-
-        {step === 1 ? (
-        <Section title="Personal details" icon={User}>
-          <DateField
-            label="Date of birth"
-            required
-            value={form.date_of_birth}
-            onChange={(v) => update("date_of_birth", v, true)}
-            placeholder="Select date of birth"
-            min={yearsAgo(settings.participant_max_age)}
-            max={yearsAgo(settings.participant_min_age)}
-            initialYear={new Date().getFullYear() - 22}
-            error={errors.date_of_birth}
-            hint={age !== null && !errors.date_of_birth ? `Age ${age}` : undefined}
-          />
-          {age !== null && !errors.date_of_birth ? (
-            <View style={styles.badgeRow}>
-              <Badge
-                text={isYouth ? `Youth (${youthBand})` : `Outside the youth band (${youthBand})`}
-                tone={isYouth ? "success" : "warning"}
-              />
-            </View>
-          ) : null}
-          <ChoiceRow
-            label="Sex"
-            required
-            value={form.sex}
-            options={[
-              { label: "Female", value: "female" },
-              { label: "Male", value: "male" },
-            ]}
-            onChange={(v) => update("sex", v, true)}
-            error={errors.sex}
-          />
-          <Field
-            label="Nationality"
-            value={form.nationality}
-            onChangeText={(v) => update("nationality", v)}
-            placeholder="e.g. Ethiopian"
-            autoCapitalize="words"
-          />
-          <Field
-            label="Phone"
-            required
-            value={form.phone}
-            onChangeText={(v) => update("phone", v)}
-            placeholder="09…"
-            maxLength={10}
-            keyboardType="phone-pad"
-            onBlur={() => checkField("phone")}
-            error={errors.phone}
-          />
-          <Field
-            label="Email"
-            value={form.email}
-            onChangeText={(v) => update("email", v)}
-            placeholder="Email address"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            onBlur={() => checkField("email")}
-            error={errors.email}
-          />
-          <Select
-            label="Education level"
-            value={form.education_level}
-            options={education}
-            onChange={(v) => update("education_level", v)}
-            placeholder="Select education level"
-          />
-          <Select
-            label="Marital status"
-            value={form.marital_status}
-            options={marital}
-            onChange={(v) => update("marital_status", v)}
-            placeholder="Select marital status"
-          />
-          <Field
-            label="Family size"
-            value={form.family_size}
-            onChangeText={(v) => update("family_size", v.replace(/\D/g, ""))}
-            placeholder="e.g. 5"
-            keyboardType="number-pad"
-            maxLength={2}
-            onBlur={() => checkField("family_size")}
-            error={errors.family_size}
-          />
-        </Section>
-        ) : null}
-
-        {step === 2 ? (
-        <Section title="Location" icon={MapPin}>
-          <Select
-            label="Region"
-            required
-            value={form.region}
-            options={regionChoices.regions}
-            onChange={(v) => {
-              setForm((p) => ({ ...p, region: v, zone: "", woreda: "", woreda_other: "" }));
-              checkField("region", { ...form, region: v, zone: "", woreda: "", woreda_other: "" });
-            }}
-            placeholder="Select region"
-            error={errors.region}
-          />
-          {zones.length > 0 ? (
-            <Select
-              label="Zone"
-              required
-              value={form.zone}
-              options={zones}
-              onChange={(v) => {
-                setForm((p) => ({ ...p, zone: v, woreda: "", woreda_other: "" }));
-                checkField("zone", { ...form, zone: v, woreda: "", woreda_other: "" });
-              }}
-              placeholder={form.region ? "Select zone" : "Select the region first"}
-              disabled={!form.region}
-              error={errors.zone}
-            />
-          ) : (
-            <Field
-              label="Zone"
-              required
-              value={form.zone}
-              onChangeText={(v) => update("zone", v)}
-              autoCapitalize="words"
-              hint={form.region ? "No zones listed for this region yet: type it." : undefined}
-              onBlur={() => checkField("zone")}
-              error={errors.zone}
-            />
-          )}
-          <Select
-            label="Woreda"
-            required
-            value={form.woreda}
-            options={woredaOptions}
-            onChange={(v) => update("woreda", v, true)}
-            placeholder={form.zone ? "Select woreda" : "Select the zone first"}
-            disabled={!form.zone}
-            error={errors.woreda}
-          />
-          <Field label="Kebele" value={form.kebele} onChangeText={(v) => update("kebele", v)} autoCapitalize="words" />
-        </Section>
-        ) : null}
-
-        {step === 3 ? (
-        <Section title="Inclusion" icon={Heart}>
-          <Select
-            label="Vulnerability category"
-            value={form.vulnerability_category}
-            options={vulnerability}
-            onChange={(v) => update("vulnerability_category", v)}
-            placeholder="Select category"
-          />
-          {form.vulnerability_category === OTHER ? (
-            <Field
-              label="Other vulnerability category"
-              required
-              value={form.vulnerability_other}
-              onChangeText={(v) => update("vulnerability_other", v)}
-              onBlur={() => checkField("vulnerability_other")}
-              error={errors.vulnerability_other}
-            />
-          ) : null}
-          <Toggle
-            label="Disability"
-            value={form.disability}
-            onChange={(v) => update("disability", v)}
-          />
-          {form.disability ? (
-            <>
-              <Select
-                label="Disability type"
-                required
-                value={form.disability_type}
-                options={disability}
-                onChange={(v) => update("disability_type", v, true)}
-                placeholder="Select type"
-                error={errors.disability_type}
-              />
-              {form.disability_type === OTHER ? (
-                <Field
-                  label="Other disability"
-                  required
-                  value={form.disability_other}
-                  onChangeText={(v) => update("disability_other", v)}
-                  onBlur={() => checkField("disability_other")}
-                  error={errors.disability_other}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </Section>
-        ) : null}
-
-        {step === 4 ? (
-        <Section title="Consent and notes" icon={ShieldCheck}>
-          <Text style={styles.consentNote}>
-            {"Personal data is collected under Ethiopia's Personal Data Protection Proclamation No. 1321/2024. " +
-              "Before ticking, explain the purpose of the programme, how the data will be used and kept, and that " +
-              "the participant can withdraw consent at any time without losing services. A seven-year retention " +
-              "date is set automatically."}
-          </Text>
-          <Toggle
-            label="Consent given *"
-            value={form.consent_given}
-            onChange={(v) => update("consent_given", v, true)}
-          />
-          {errors.consent_given ? <Text style={styles.fieldError}>{errors.consent_given}</Text> : null}
-          <Field
-            label="Notes"
-            value={form.notes}
-            onChangeText={(v) => update("notes", v)}
-            placeholder="Additional notes"
-            multiline
-          />
-        </Section>
-        ) : null}
+        <ParticipantFields
+          step={step}
+          form={form}
+          setForm={setForm}
+          update={update}
+          checkField={checkField}
+          errors={errors}
+          identitySlot={identitySlot}
+        />
       </ScrollView>
       <StickyFooter>
         <View style={styles.footerRow}>
@@ -641,14 +336,8 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: "row", gap: spacing.sm },
   grow: { flex: 1 },
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
-  consentNote: { fontSize: 12, color: colors.muted, lineHeight: 18 },
   fieldError: { fontSize: 12, color: colors.danger, fontWeight: "500" },
-  otpBox: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
-  },
+  otpBox: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primarySoft },
   otpMessage: { fontSize: 12, color: colors.secondary, lineHeight: 18 },
   verified: {
     flexDirection: "row",
@@ -660,7 +349,6 @@ const styles = StyleSheet.create({
   },
   verifiedText: { flex: 1, fontSize: 12, color: colors.success, fontWeight: "600", lineHeight: 18 },
   warn: { fontSize: 12, color: colors.warning, lineHeight: 18 },
-  badgeRow: { flexDirection: "row", marginTop: -spacing.xs },
   existing: { gap: spacing.sm, borderColor: colors.warning, borderWidth: 1 },
   existingText: { fontSize: 13, color: colors.text, fontWeight: "600" },
   noticeWrap: { flex: 1, justifyContent: "center", padding: spacing.lg, backgroundColor: colors.background },

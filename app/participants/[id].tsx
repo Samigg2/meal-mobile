@@ -108,7 +108,12 @@ export default function ParticipantDetail() {
           ) : null}
           {participant.disability ? (
             <StatusPill
-              label={participant.disability_type ?? "Disability"}
+              label={
+                // Several impairments since F01 (0114); older records hold one code.
+                (Array.isArray(participant.disability_type)
+                  ? participant.disability_type.join(", ")
+                  : participant.disability_type) || "Disability"
+              }
               tone="violet"
             />
           ) : null}

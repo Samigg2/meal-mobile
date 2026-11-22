@@ -76,7 +76,11 @@ export function PlacePickers({
   );
 }
 
-/** Education, marital status and vulnerability: optional; the officer confirms them at review. */
+/**
+ * Education and marital status: optional; the officer confirms them at review.
+ * (Vulnerability category was replaced on the server by F01's target status and
+ * female-headed household, which staff record at review.)
+ */
 export function AnswerPickers({
   options,
   value,
@@ -102,13 +106,6 @@ export function AnswerPickers({
         value={value.marital_status || undefined}
         options={list(options?.marital_statuses)}
         onChange={(v) => onChange({ ...value, marital_status: v })}
-        placeholder="Select (optional)"
-      />
-      <Select
-        label="Does any of these apply to you?"
-        value={value.vulnerability_category || undefined}
-        options={list(options?.vulnerability_categories)}
-        onChange={(v) => onChange({ ...value, vulnerability_category: v })}
         placeholder="Select (optional)"
       />
     </>
