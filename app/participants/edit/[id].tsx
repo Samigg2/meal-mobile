@@ -58,6 +58,7 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
   return {
     ...EMPTY,
     full_name: p.full_name,
+    nationality: p.nationality ?? "",
     national_id: p.national_id ?? "",
     kebele_id: p.kebele_id ?? "",
     date_of_birth: p.date_of_birth ?? "",
@@ -72,7 +73,9 @@ function toForm(p: ParticipantRow, woredasOf: (zone: string) => Option[]): FormS
     education_level: p.education_level ?? "",
     marital_status: p.marital_status ?? "",
     family_size: p.family_size != null ? String(p.family_size) : "",
-    vulnerability_category: p.vulnerability_category ?? "",
+    // Dropped on the server by F01 (migration 0112, replaced by target status and
+    // female-headed household); read only when an older copy still carries it.
+    vulnerability_category: (p as { vulnerability_category?: string | null }).vulnerability_category ?? "",
     disability: !!p.disability,
     disability_type: p.disability_type ?? "",
     consent_given: p.consent_given,
@@ -355,6 +358,13 @@ function EditForm({
             ]}
             onChange={(v) => update("sex", v, true)}
             error={errors.sex}
+          />
+          <Field
+            label="Nationality"
+            value={form.nationality}
+            onChangeText={(v) => update("nationality", v)}
+            placeholder="e.g. Ethiopian"
+            autoCapitalize="words"
           />
           <Field
             label="Phone"

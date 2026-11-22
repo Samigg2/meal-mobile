@@ -15,6 +15,8 @@ export interface FayidaDemographics {
   /** Which ID was proved, when Fayida says. */
   national_id?: string;
   full_name?: string;
+  /** The name in Amharic (Ge'ez script), when Fayida holds one. */
+  full_name_am?: string;
   date_of_birth?: string;
   sex?: "male" | "female";
   region?: string;
@@ -22,6 +24,8 @@ export interface FayidaDemographics {
   woreda?: string;
   kebele?: string;
   phone?: string;
+  /** Self-declared nationality, e.g. "Ethiopian". */
+  nationality?: string;
 }
 
 export interface FayidaCheck {

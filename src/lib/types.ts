@@ -490,8 +490,8 @@ export interface GovernanceEngagementRow {
   participants_count: number;
   female_count: number;
   custom: Record<string, unknown>;
-  institution_id: string | null;
   partner_id: string | null;
+  institution_id: string | null;
   woreda: string | null;
   kebele: string | null;
 }
@@ -847,6 +847,8 @@ export interface ParticipantRow {
   national_id_check: string | null;
   submitted_by: string | null;
   disability_type_other: string | null;
+  full_name_am: string | null;
+  nationality: string | null;
   has_fayida: boolean | null;
   labour_id: string | null;
   first_name: string | null;
@@ -870,8 +872,6 @@ export interface ParticipantRow {
   registration_site: string | null;
   gps_lat: number | null;
   gps_lng: number | null;
-  full_name_am: string | null;
-  nationality: string | null;
 }
 
 export interface PartnershipRow {

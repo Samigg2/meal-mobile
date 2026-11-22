@@ -32,6 +32,8 @@ import { DateField } from "@/components/date-picker";
 import { Button, EmptyState, Field, Loading, Select } from "@/components/ui";
 
 const TIN_RE = /^\d{10}$/;
+/** A TIN is asked for a Formal enterprise (DMIS F02A-3), or "registered" on an older list. */
+const needsTin = (status: string) => status === "formal" || status === "registered";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STATUSES = [
   { label: "Active", value: "active" },
@@ -187,7 +189,7 @@ function EnterpriseForm({
       found.email = "Enter a valid email address";
     if (!registration)
       found.registration_status = "Registration status is required";
-    if (registration === "registered" && !TIN_RE.test(tin.trim()))
+    if (needsTin(registration) && !TIN_RE.test(tin.trim()))
       found.tin_number = "The TIN must be exactly 10 digits";
     if (!established) found.established_date = "Established date is required";
     else if (established > todayISO())
@@ -225,7 +227,7 @@ function EnterpriseForm({
       email: email.trim() || undefined,
       status: status as EnterpriseInput["status"],
       registration_status: registration,
-      tin_number: registration === "registered" ? tin.trim() : undefined,
+      tin_number: needsTin(registration) ? tin.trim() : undefined,
       established_date: established,
       employees_male: male!,
       employees_female: female!,
@@ -397,7 +399,7 @@ function EnterpriseForm({
             placeholder="Select status"
             error={errors.registration_status}
           />
-          {registration === "registered" ? (
+          {needsTin(registration) ? (
             <Field
               label="TIN Number"
               required
