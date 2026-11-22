@@ -36,7 +36,9 @@ export type QueuedKind =
   | "follow_up_edit"
   | "feedback_edit"
   | "safeguarding_edit"
-  | "document_photo";
+  | "document_photo"
+  | "weo_service"
+  | "yiw_follow_up";
 
 export interface QueuedItem {
   id: string;
@@ -100,6 +102,13 @@ const ROUTES: Record<QueuedKind, Route> = {
   safeguarding_edit: { method: "patch", path: (id) => `/records/safeguarding/${id}`, what: "Safeguarding change", form: "/safeguarding/new" },
   // A document photo taken offline, sent by uploadPhoto (sendQueued) rather than as JSON.
   document_photo: { method: "post", path: () => "/attachments/upload", what: "Document photo", form: "/documents" },
+  yiw_follow_up: {
+    method: "post",
+    path: (id) => `/youth-in-work/${id}/follow-ups`,
+    what: "Youth in Work follow-up",
+    form: "/youth-in-work/follow-up",
+  },
+  weo_service: { method: "post", path: () => "/work-enabling-services", what: "Work-enabling service", form: "/outreach/new" },
   activity_progress: {
     method: "patch",
     path: (id) => `/monitoring/activities/${id}/progress`,

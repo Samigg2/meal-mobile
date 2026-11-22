@@ -135,6 +135,8 @@ export default function RootLayout() {
             <Stack.Screen name="finance/repayment" options={{ title: "Record a repayment" }} />
             <Stack.Screen name="employment/new" options={{ title: "Record a job" }} />
             <Stack.Screen name="employment/follow-up" options={{ title: "Job follow-up" }} />
+            <Stack.Screen name="outreach/new" options={{ title: "Work-enabling service" }} />
+            <Stack.Screen name="youth-in-work/follow-up" options={{ title: "Youth in Work follow-up" }} />
             <Stack.Screen name="activities/index" options={{ title: "Work plan" }} />
             <Stack.Screen name="activities/[id]" options={{ title: "Update progress" }} />
             <Stack.Screen name="sync" options={{ title: "Offline queue" }} />

@@ -23,6 +23,7 @@ import {
   Text,
 } from "@/components/ui";
 import { DocumentPhotos } from "@/components/document-photos";
+import { YouthInWorkCard } from "@/components/youth-in-work-card";
 import { colors, spacing, topics } from "@/theme";
 
 const capital = (s?: string | null) =>
@@ -343,6 +344,34 @@ export default function ParticipantDetail() {
             />
           ) : null}
         </Card>
+      ) : null}
+
+      {/* DMIS F03: services recorded in the field; the list and bulk entry are on the web. */}
+      {can("training", "write") && !pending && !data.fromCopy ? (
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Work-enabling services</Text>
+          <Text style={styles.meta}>Record a service this person received (training, finance, digital, E-YSLA…).</Text>
+          <Button
+            title="Record a service"
+            icon={Plus}
+            variant="outline"
+            onPress={() =>
+              router.push({
+                pathname: "/outreach/new",
+                params: { ...who, preference: participant.employment_preference ?? "" },
+              })
+            }
+          />
+        </Card>
+      ) : null}
+
+      {can("employment") ? (
+        <YouthInWorkCard
+          participantId={participant.id}
+          participantName={participant.full_name}
+          canWrite={can("employment", "write") && !pending}
+          online={!data.fromCopy}
+        />
       ) : null}
 
       {can("finance") ? (

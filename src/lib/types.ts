@@ -1353,6 +1353,23 @@ export interface UserRow {
   locked_until: string | null;
 }
 
+export interface WorkEnablingServiceRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  participant_id: string;
+  woreda: string | null;
+  enterprise_id: string | null;
+  service_category: string;
+  service_date: string;
+  employment_type: string;
+  service_provider_id: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkplanActivityRow {
   id: string;
   created_by: string;
@@ -1379,6 +1396,53 @@ export interface WorkplanActivityRow {
   completion_reviewed_by: string | null;
   completion_reviewed_at: string | null;
   completion_review_note: string | null;
+}
+
+export interface YiwFollowUpRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  youth_in_work_id: string;
+  reporting_date: string;
+  reporting_month: string | null;
+  pathway: string;
+  currently_working: boolean;
+  not_working_reason: string | null;
+  stopped_on: string | null;
+  same_enterprise: boolean;
+  monthly_income: number | null;
+  employment_nature: string;
+  employment_type: string;
+  yiw_category: string;
+  dw_honest_respected: boolean;
+  dw_dignity: boolean;
+  dw_satisfaction: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface YouthInWorkRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  participant_id: string;
+  woreda: string | null;
+  employment_type: string;
+  enterprise_id: string | null;
+  employer_institution_id: string | null;
+  employer_name: string | null;
+  verification_means: string | null;
+  start_date: string;
+  first_income_date: string | null;
+  baseline_income: number;
+  pathway: string;
+  employment_nature: string;
+  yiw_category: string;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface YslaCycleRow {
