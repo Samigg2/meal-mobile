@@ -23,6 +23,8 @@ export interface ChildOption extends ListOption {
 export interface RegistrationOptions {
   /** Which proofs the API can ask for. Without phone, registration is closed. */
   verification: { phone: boolean; fayida: boolean };
+  /** Registration age range, inclusive (programme settings). */
+  age?: { min: number; max: number };
   regions: ListOption[];
   /** A region covered by several clusters asks the person which one is hers. */
   clusters: { id: string; name: string; region: string }[];

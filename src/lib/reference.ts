@@ -88,8 +88,8 @@ export interface ProgrammeSettings {
 export const DEFAULT_SETTINGS: ProgrammeSettings = {
   youth_min_age: 15,
   youth_max_age: 35,
-  participant_min_age: 10,
-  participant_max_age: 100,
+  participant_min_age: 18,
+  participant_max_age: 35,
 };
 
 export const SETTINGS_CACHE_KEY = "settings";

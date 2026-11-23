@@ -406,7 +406,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
             value={form.date_of_birth}
             onChange={(v) => update("date_of_birth", v, true)}
             placeholder="Select date of birth"
-            min={yearsAgo(settings.participant_max_age)}
+            min={yearsAgo(settings.participant_max_age + 1)}
             max={yearsAgo(settings.participant_min_age)}
             initialYear={new Date().getFullYear() - 22}
             error={errors.date_of_birth}

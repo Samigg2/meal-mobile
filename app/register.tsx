@@ -17,7 +17,7 @@ import {
 import { AnswerPickers, PlacePickers } from "@/components/registration-fields";
 import { ApiError } from "@/lib/api";
 import { checkWithFayida } from "@/lib/fayida";
-import { PHONE_RE, yearsAgo } from "@/lib/participant-form";
+import { PHONE_RE, ageOn, yearsAgo } from "@/lib/participant-form";
 import {
   Badge,
   Button,
@@ -182,11 +182,18 @@ export default function Register() {
   }
 
   const phoneOk = PHONE_RE.test(phone.trim());
+  const minAge = options.data?.age?.min ?? 18;
+  const maxAge = options.data?.age?.max ?? 35;
+  const age = dob ? ageOn(dob) : null;
+  const ageProblem =
+    age !== null && (age < minAge || age > maxAge)
+      ? `You must be ${minAge} to ${maxAge} years old to register (you are ${age}).`
+      : null;
   // What still stops each step, in her words; Next stays on the step until it is done.
   const problems: (string | null)[] = [
     phoneToken ? null : "Confirm your phone number with the code we send.",
     nationalId.trim() || kebeleId.trim() ? null : "Give your National ID or your Kebele ID.",
-    !fullName.trim() ? "Give your full name." : !sex ? "Choose your sex." : !dob ? "Give your date of birth." : null,
+    !fullName.trim() ? "Give your full name." : !sex ? "Choose your sex." : !dob ? "Give your date of birth." : ageProblem,
     !region
       ? "Choose your region."
       : needsCluster && !cluster
@@ -338,7 +345,8 @@ export default function Register() {
             required
             value={dob}
             onChange={setDob}
-            max={yearsAgo(10)}
+            min={yearsAgo(maxAge + 1)}
+            max={yearsAgo(minAge)}
             initialYear={new Date().getFullYear() - 20}
           />
           <Toggle label="I live with a disability" value={disability} onChange={setDisability} />
