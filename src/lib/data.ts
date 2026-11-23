@@ -776,6 +776,9 @@ export interface AttendanceInput {
 export const SAFEGUARDING_TYPES = [
   { label: "Sexual exploitation", value: "sexual_exploitation" },
   { label: "Abuse", value: "abuse" },
+  // The safeguarding tracker's incident types (migration 0127).
+  { label: "Physical abuse", value: "physical" },
+  { label: "Emotional abuse", value: "emotional" },
   { label: "Harassment", value: "harassment" },
   { label: "Discrimination", value: "discrimination" },
   { label: "Child safeguarding", value: "child_safeguarding" },
@@ -996,6 +999,9 @@ export interface ActivityRow {
   is_delayed: boolean;
   completion_review: string | null;
   indicators: { code: string; name: string } | null;
+  /** Activity Performance Tracker (backend 0126): its code, e.g. 1.1.1, and unit of measure (a Reference data code). */
+  activity_code?: string | null;
+  unit_of_measure?: string | null;
 }
 
 export const ACTIVITY_STATUS: Record<ActivityStatus, { label: string; tone: PillTone }> = {
@@ -1015,6 +1021,17 @@ export interface ProgressInput {
   status: ActivityStatus;
   actual_start?: string;
   actual_end?: string;
+  /** This month's achievement and the rural young youth reached, for the Activity Performance Tracker (0126). */
+  period?: PeriodActual;
+}
+
+export interface PeriodActual {
+  /** Calendar month, "2026-11". */
+  month: string;
+  actual: number | null;
+  female?: number | null;
+  male?: number | null;
+  pwd?: number | null;
 }
 
 /* ----------------------------- my responses ------------------------------ */

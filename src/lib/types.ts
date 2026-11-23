@@ -32,7 +32,7 @@ export type ParticipantStatus = "active" | "graduated" | "dropped" | "inactive";
 export type PartnerType = "government" | "ngo" | "private_sector" | "cso" | "media" | "other";
 export type PartnershipStatus = "active" | "pending" | "completed" | "terminated";
 export type SafeguardingCaseStatus = "open" | "investigating" | "closed" | "referred";
-export type SafeguardingCaseType = "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other";
+export type SafeguardingCaseType = "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other" | "physical" | "emotional";
 export type SavingsStatus = "active" | "dormant" | "closed";
 export type TrainingStatus = "planned" | "ongoing" | "completed" | "cancelled";
 export type TrainingType = "technical" | "life_skills" | "business" | "financial_literacy" | "digital" | "other";
@@ -653,6 +653,18 @@ export interface GovernanceEngagementRow {
   kebele: string | null;
 }
 
+export interface IndicatorTargetRow {
+  id: string;
+  indicator_id: string;
+  programme_year: number;
+  quarter: number | null;
+  disaggregation: string | null;
+  target_value: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface IndicatorValueRow {
   id: string;
   created_by: string;
@@ -676,6 +688,7 @@ export interface IndicatorValueRow {
   verified_at: string | null;
   rejection_reason: string | null;
   calculated: boolean;
+  breakdown: Record<string, unknown>;
 }
 
 export interface IndicatorRow {
@@ -1180,11 +1193,37 @@ export interface SaccoMembershipRow {
   updated_at: string;
 }
 
+export interface SafeguardingActivityRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  kind: string;
+  activity_date: string;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  type_code: string | null;
+  type_other: string | null;
+  title: string | null;
+  description: string | null;
+  female: number | null;
+  male: number | null;
+  age_18_35: number | null;
+  over_35: number | null;
+  pwd: number | null;
+  total: number | null;
+  denominator: number | null;
+  client_ref: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SafeguardingCaseRow {
   id: string;
   created_by: string;
   reporter_id: string | null;
-  case_type: "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other";
+  case_type: "sexual_exploitation" | "abuse" | "harassment" | "discrimination" | "child_safeguarding" | "fraud" | "other" | "physical" | "emotional";
   status: "open" | "investigating" | "closed" | "referred";
   reported_date: string;
   incident_date: string | null;
@@ -1195,6 +1234,19 @@ export interface SafeguardingCaseRow {
   organization_id: string | null;
   custom: Record<string, unknown>;
   client_ref: string | null;
+}
+
+export interface SafeguardingKpiTargetRow {
+  id: string;
+  kpi_code: string;
+  programme_year: number;
+  quarter: number | null;
+  disaggregation: string | null;
+  target_value: number | null;
+  comment: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SbccActivityRow {
@@ -1537,6 +1589,31 @@ export interface WorkplanActivityRow {
   completion_reviewed_by: string | null;
   completion_reviewed_at: string | null;
   completion_review_note: string | null;
+  activity_code: string | null;
+  result_area: string | null;
+  unit_of_measure: string | null;
+  lop_target: number | null;
+}
+
+export interface WorkplanActivityPeriodRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  activity_id: string;
+  year: number;
+  quarter: number | null;
+  month: number | null;
+  target: number | null;
+  actual: number | null;
+  female: number | null;
+  male: number | null;
+  pwd: number | null;
+  target_female: number | null;
+  target_male: number | null;
+  target_pwd: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface YiwFollowUpRow {

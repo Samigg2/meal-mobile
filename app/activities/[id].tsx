@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { type ScrollView } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ACTIVITY_STATUS, listActivities, type ActivityRow, type ProgressInput } from "@/lib/data";
+import { ACTIVITY_STATUS, listActivities, type ActivityRow, type PeriodActual, type ProgressInput } from "@/lib/data";
+import { useLookupOptions } from "@/lib/reference";
 import type { Targeted } from "@/lib/queue";
 import { todayISO } from "@/lib/participant-form";
 import { errorsFrom, fixCount, numberOf, saveOrQueue, useQueuedPayload, type Errors } from "@/lib/field-form";
@@ -20,7 +21,19 @@ const STATUSES = (Object.keys(ACTIVITY_STATUS) as ActivityRow["status"][])
     value,
   }));
 
-/**
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "2026-11" for this month and the one before: an achievement is often recorded just after the month ends. */
+function recentMonths(): { label: string; value: string }[] {
+  const now = new Date();
+  return [0, 1].map((back) => {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+    return {
+      value: d.toISOString().slice(0, 7),
+      label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}${back === 0 ? " (this month)" : ""}`,
+    };
+  });
+}/**
  * Progress on one work-plan activity, the same rules as the web: not started
  * is 0%, in progress 1–99%, completed 100%. A completed activity is verified
  * on the web by someone else; once verified the phone leaves it alone.
@@ -64,6 +77,21 @@ function ProgressForm({
   const [percent, setPercent] = useState(String(initial?.progress_percent ?? activity.progress_percent));
   const [started, setStarted] = useState(initial?.actual_start ?? activity.actual_start?.slice(0, 10) ?? "");
   const [ended, setEnded] = useState(initial?.actual_end ?? activity.actual_end?.slice(0, 10) ?? "");
+  // This month's achievement for the Activity Performance Tracker (optional).
+  const queuedMonth = initial?.period?.month;
+  const months = [
+    ...recentMonths(),
+    // A waiting item opened again keeps its month, however long it waited.
+    ...(queuedMonth && !recentMonths().some((m) => m.value === queuedMonth) ? [{ value: queuedMonth, label: queuedMonth }] : []),
+  ];
+  const units = useLookupOptions("workplan.unit_of_measure");
+  const unit = units.find((u) => u.value === activity.unit_of_measure)?.label ?? activity.unit_of_measure ?? null;
+  const [month, setMonth] = useState(initial?.period?.month ?? months[0].value);
+  const text = (v: number | null | undefined) => (v === null || v === undefined ? "" : String(v));
+  const [actual, setActual] = useState(text(initial?.period?.actual));
+  const [female, setFemale] = useState(text(initial?.period?.female));
+  const [male, setMale] = useState(text(initial?.period?.male));
+  const [pwd, setPwd] = useState(text(initial?.period?.pwd));
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<"sent" | "queued" | null>(null);
@@ -84,6 +112,21 @@ function ProgressForm({
       found.progress_percent = "In progress is between 1% and 99%; mark it completed for 100%";
     }
     if (started && ended && ended < started) found.actual_end = "The end cannot be before the start";
+    // The month's achievement: blank fields are not sent; counts are 0 or more.
+    const figures = { actual: numberOf(actual), female: numberOf(female), male: numberOf(male), pwd: numberOf(pwd) };
+    for (const [key, v] of Object.entries(figures)) {
+      if (v !== undefined && (!Number.isFinite(v) || v < 0)) found[`period_${key}`] = "Give a number, 0 or more";
+      else if (v !== undefined && key !== "actual" && !Number.isInteger(v)) found[`period_${key}`] = "Give a whole number";
+    }
+    if (
+      !found.period_pwd &&
+      figures.pwd !== undefined &&
+      (figures.female !== undefined || figures.male !== undefined) &&
+      figures.pwd > (figures.female ?? 0) + (figures.male ?? 0)
+    ) {
+      found.period_pwd = "People with a disability are among the women and men: no more than them";
+    }
+    const anyFigure = Object.values(figures).some((v) => v !== undefined);
     if (Object.keys(found).length) {
       setErrors({ ...found, form: fixCount(found) });
       scroll.current?.scrollTo({ y: 0, animated: true });
@@ -94,6 +137,15 @@ function ProgressForm({
       status,
       actual_start: started || undefined,
       actual_end: ended || undefined,
+      period: anyFigure
+        ? ({
+            month,
+            actual: figures.actual ?? null,
+            female: figures.female ?? null,
+            male: figures.male ?? null,
+            pwd: figures.pwd ?? null,
+          } satisfies PeriodActual)
+        : undefined,
       _target: activity.id,
       _title: activity.title,
     };
@@ -136,6 +188,30 @@ function ProgressForm({
         />
         <DateField label="Actually started" value={started} onChange={setStarted} max={todayISO()} hint="Filled with today when left empty." />
         <DateField label="Actually ended" value={ended} onChange={setEnded} max={todayISO()} error={errors.actual_end} />
+      </FormCard>
+      <FormCard
+        title="Achievement this month"
+        hint={`For the activity tracker${activity.activity_code ? ` (${activity.activity_code})` : ""}. Leave blank if nothing to report. Saving again replaces the month's figures.`}
+      >
+        <Select label="Month" value={month} options={months} onChange={setMonth} />
+        <Field
+          label={unit ? `Achieved (${unit})` : "Achieved"}
+          value={actual}
+          onChangeText={setActual}
+          keyboardType="decimal-pad"
+          error={errors.period_actual}
+        />
+        <Text>Rural young youth reached</Text>
+        <Field label="Female" value={female} onChangeText={setFemale} keyboardType="number-pad" error={errors.period_female} />
+        <Field label="Male" value={male} onChangeText={setMale} keyboardType="number-pad" error={errors.period_male} />
+        <Field
+          label="People with a disability"
+          value={pwd}
+          onChangeText={setPwd}
+          keyboardType="number-pad"
+          hint="Among the women and men above."
+          error={errors.period_pwd}
+        />
       </FormCard>
     </FormScreen>
   );
