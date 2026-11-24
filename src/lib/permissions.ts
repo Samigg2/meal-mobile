@@ -91,6 +91,9 @@ const MATRIX: Record<
     read: ["programme_manager", "monitoring_officer", "field_officer", "donor_viewer"],
     write: ["programme_manager", "field_officer"],
     delete: ["programme_manager", "field_officer"],
+    // Reviewing and approving the training-title catalogue (F06, 0129):
+    // a monitoring officer reviews, a programme manager approves.
+    approve: ["programme_manager", "monitoring_officer"],
   },
   partnerships: {
     read: ["programme_manager", "monitoring_officer", "donor_viewer"],

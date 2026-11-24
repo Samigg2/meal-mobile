@@ -10,7 +10,7 @@
 
 export type ActionPriority = "low" | "medium" | "high" | "critical";
 export type ActionSource = "feedback" | "safeguarding" | "reflection_meeting" | "governance" | "evaluation" | "audit" | "monitoring" | "other" | "lesson_learned";
-export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled";
+export type ActionStatus = "open" | "in_progress" | "blocked" | "completed" | "cancelled" | "delayed" | "changed" | "pending";
 export type ActivityStatus = "not_started" | "in_progress" | "completed" | "delayed" | "cancelled";
 export type AttendanceStatus = "present" | "absent" | "excused";
 export type EmploymentStatus = "placed" | "retained" | "exited" | "verified" | "pending_verification";
@@ -55,7 +55,7 @@ export interface ActionItemRow {
   owner: string | null;
   due_date: string | null;
   priority: "low" | "medium" | "high" | "critical";
-  status: "open" | "in_progress" | "blocked" | "completed" | "cancelled";
+  status: "open" | "in_progress" | "blocked" | "completed" | "cancelled" | "delayed" | "changed" | "pending";
   progress_percent: number;
   completed_on: string | null;
   notes: string | null;
@@ -63,6 +63,9 @@ export interface ActionItemRow {
   updated_at: string;
   custom: Record<string, unknown>;
   owner_id: string | null;
+  evidence_link: string | null;
+  report_link: string | null;
+  lessons: string | null;
 }
 
 export interface ApiKeyRow {
@@ -555,6 +558,44 @@ export interface EvaluationRow {
   evaluator_institution_id: string | null;
 }
 
+export interface EventRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  event_name: string;
+  category: string;
+  category_other: string | null;
+  sub_category: string | null;
+  platform: string;
+  venue: string | null;
+  online_link: string | null;
+  organizer: string;
+  coordinator_id: string | null;
+  start_date: string;
+  end_date: string;
+  region: string;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  stakeholder_institution_ids: string[];
+  stakeholders: string | null;
+  participants_female: number;
+  participants_male: number;
+  participants_pwd: number;
+  participants_youth: number;
+  participants_total: number | null;
+  enterprise_ids: string[];
+  sales_value: number | null;
+  linkages_count: number | null;
+  key_takeaways: string | null;
+  follow_up: string | null;
+  status: string;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FeedbackRow {
   id: string;
   created_by: string | null;
@@ -626,6 +667,38 @@ export interface GovernanceAttendeeRow {
   created_at: string;
 }
 
+export interface GovernanceBodyRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  name: string;
+  body_type: string;
+  body_type_other: string | null;
+  acronym: string | null;
+  purpose: string | null;
+  strategic_objective: string | null;
+  lead_institution_id: string | null;
+  membership_composition: string | null;
+  chair_name: string | null;
+  chair_role: string | null;
+  meeting_frequency: string | null;
+  female_members: number;
+  male_members: number;
+  pwd_members: number;
+  total_members: number | null;
+  tor_available: string | null;
+  expected_outputs: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  status: string;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface GovernanceEngagementRow {
   id: string;
   created_by: string;
@@ -651,6 +724,13 @@ export interface GovernanceEngagementRow {
   institution_id: string | null;
   woreda: string | null;
   kebele: string | null;
+  governance_body_id: string | null;
+  modality: string | null;
+  chaired_by: string | null;
+  male_count: number;
+  pwd_count: number;
+  agenda: string | null;
+  minutes_link: string | null;
 }
 
 export interface IndicatorTargetRow {
@@ -745,6 +825,15 @@ export interface InstitutionRow {
   updated_at: string;
   youth_led: boolean;
   custom: Record<string, unknown>;
+  partner_code: string;
+  partner_category: string | null;
+  partner_sub_category: string | null;
+  result_area: string | null;
+  agreed_role: string | null;
+  contact_sex: string | null;
+  contact_position: string | null;
+  due_diligence_status: string | null;
+  due_diligence_date: string | null;
 }
 
 export interface KnowledgeResourceRow {
@@ -771,6 +860,97 @@ export interface KnowledgeResourceRow {
   shared_on: string | null;
   shared_how: string[];
   shared_with: string | null;
+}
+
+export interface LeadFirmEnterpriseRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  institution_id: string;
+  enterprise_id: string;
+  relationship_type: string;
+  since: string;
+  ended_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadFirmProfileRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  institution_id: string;
+  code: string;
+  tin: string | null;
+  year_established: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  office_phone: string | null;
+  office_email: string | null;
+  website: string | null;
+  mou_date: string | null;
+  support_received: string[];
+  employment_type: string | null;
+  employment_nature: string[];
+  business_model: string | null;
+  vc_types: string[];
+  sub_business_types: string[];
+  vc_roles: string[];
+  permanent_male: number | null;
+  permanent_female: number | null;
+  permanent_pwd: number | null;
+  permanent_rdp: number | null;
+  temporary_male: number | null;
+  temporary_female: number | null;
+  temporary_pwd: number | null;
+  temporary_rdp: number | null;
+  seasonal_male: number | null;
+  seasonal_female: number | null;
+  seasonal_pwd: number | null;
+  seasonal_rdp: number | null;
+  annual_revenue: number | null;
+  capital: number | null;
+  suppliers_count: number | null;
+  buyers_count: number | null;
+  branches_count: number | null;
+  agribusinesses_count: number | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadFirmReportRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  institution_id: string;
+  report_month: string;
+  reporting_date: string;
+  enterprises_linked: number;
+  permanent_male: number | null;
+  permanent_female: number | null;
+  permanent_pwd: number | null;
+  permanent_rdp: number | null;
+  temporary_male: number | null;
+  temporary_female: number | null;
+  temporary_pwd: number | null;
+  temporary_rdp: number | null;
+  seasonal_male: number | null;
+  seasonal_female: number | null;
+  seasonal_pwd: number | null;
+  seasonal_rdp: number | null;
+  annual_revenue: number | null;
+  capital: number | null;
+  suppliers_count: number | null;
+  buyers_count: number | null;
+  branches_count: number | null;
+  agribusinesses_count: number | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LearningAgendaItemRow {
@@ -899,6 +1079,132 @@ export interface LookupValueRow {
   updated_at: string;
   latitude: number | null;
   longitude: number | null;
+}
+
+export interface LspAssessmentCheckRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  assessment_id: string;
+  check_id: string;
+  answer: string | null;
+  score: number | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspAssessmentKpiRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string | null;
+  assessment_id: string;
+  kpi_id: string;
+  target: number | null;
+  actual: number | null;
+  achievement_pct: number | null;
+  prefilled_actual: number | null;
+  not_applicable: boolean;
+  na_reason: string | null;
+  evidence: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspAssessmentRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  service_provider_id: string;
+  category: string;
+  period_type: string;
+  period_start: string;
+  period_end: string;
+  status: string;
+  assigned_count: number | null;
+  risks: Record<string, unknown>;
+  improvement_plan: Record<string, unknown>;
+  register: Record<string, unknown>;
+  worked_well: string | null;
+  not_worked: string | null;
+  support_needed: string | null;
+  supervisor_feedback: string | null;
+  agreed_actions: string | null;
+  follow_up_date: string | null;
+  na_justification: string | null;
+  overall_pct: number | null;
+  band_rating: number | null;
+  overall_rating: number | null;
+  safeguarding_gate: string;
+  area_scores: Record<string, unknown>;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  submit_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  approval_note: string | null;
+  returned_by: string | null;
+  returned_at: string | null;
+  return_note: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspRatingAreaRow {
+  id: string;
+  category: string;
+  code: string;
+  name: string;
+  description: string | null;
+  weight: number;
+  is_safeguarding: boolean;
+  sort_order: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspRatingBandRow {
+  id: string;
+  rating: number;
+  min_pct: number;
+  label: string;
+  interpretation: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspRatingCheckRow {
+  id: string;
+  area_id: string;
+  question: string;
+  kind: string;
+  sort_order: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LspRatingKpiRow {
+  id: string;
+  area_id: string;
+  name: string;
+  unit: string;
+  means_of_verification: string | null;
+  lower_is_better: boolean;
+  prefill_source: string | null;
+  sort_order: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface MaterialDistributionRow {
@@ -1044,6 +1350,38 @@ export interface ParticipantRow {
   gps_lng: number | null;
 }
 
+export interface PartnershipActivityRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  partnership_id: string;
+  title: string;
+  activity_type: string;
+  description: string | null;
+  indicator_id: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  value_chain: string | null;
+  target_group: string | null;
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  milestone: string | null;
+  status: string;
+  snv_responsible_id: string | null;
+  partner_responsible: string | null;
+  evidence_note: string | null;
+  lesson: string | null;
+  next_step: string | null;
+  next_step_due: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PartnershipRow {
   id: string;
   created_by: string;
@@ -1076,6 +1414,13 @@ export interface PartnershipRow {
   direction: string;
   support_areas: string[];
   agreement_title: string;
+  signing_date: string | null;
+  agreement_value: number | null;
+  agreement_currency: string;
+  duration_days: number | null;
+  snv_focal_person_id: string | null;
+  partner_focal_person: string | null;
+  partner_focal_phone: string | null;
 }
 
 export interface ProfileRow {
@@ -1438,6 +1783,43 @@ export interface SurveyTemplateRow {
   evaluation_id: string | null;
 }
 
+export interface TorRequestRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  title: string;
+  category: string;
+  category_other: string | null;
+  component: string | null;
+  requesting_unit: string | null;
+  prepared_by: string | null;
+  requested_date: string;
+  purpose: string | null;
+  estimated_cost: number | null;
+  currency: string;
+  budget_line: string | null;
+  review_status: string;
+  submitted_at: string | null;
+  reviewed_by: string | null;
+  reviewed_on: string | null;
+  reviewers: string | null;
+  review_notes: string | null;
+  approved_by: string | null;
+  approved_on: string | null;
+  planned_start_date: string | null;
+  planned_end_date: string | null;
+  actual_start_date: string | null;
+  actual_end_date: string | null;
+  completion_status: string;
+  delay_reason: string | null;
+  final_tor_link: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TrainerRow {
   id: string;
   created_by: string;
@@ -1524,6 +1906,67 @@ export interface TrainingEventRow {
   trainer_id: string | null;
   kebele: string | null;
   custom: Record<string, unknown>;
+  programme_name: string | null;
+  venue: string | null;
+  title_id: string | null;
+  category: string | null;
+  category_other: string | null;
+  sessions: number | null;
+  duration_days: number | null;
+  budget_code: string | null;
+  lead_trainer_organisation: string | null;
+  audience: string;
+  value_chains: string[];
+}
+
+export interface TrainingOtherTraineeRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  training_event_id: string;
+  trainee_kind: string;
+  service_provider_id: string | null;
+  user_id: string | null;
+  full_name: string;
+  sex: string;
+  date_of_birth: string | null;
+  age: number | null;
+  disability: boolean;
+  organisation: string | null;
+  profession: string | null;
+  education_level: string | null;
+  phone: string | null;
+  email: string | null;
+  woreda: string | null;
+  trainee_category: string;
+  trainee_category_other: string | null;
+  attended: boolean;
+  sessions_attended: number | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrainingTitleRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  title: string;
+  training_type: string;
+  other_training_type: string | null;
+  category: string | null;
+  value_chains: string[];
+  description: string | null;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  review_note: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface UserRoleRow {
