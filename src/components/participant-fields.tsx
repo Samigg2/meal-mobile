@@ -68,7 +68,7 @@ export function ParticipantFields({
   const wage = form.employment_preference === "wage";
   const { leadFirms, isLoading: leadFirmsLoading } = useLeadFirms(wage);
   const regionChoices = useRegionChoices(form.region);
-  // F01-1 / F01-13 (backend 0137): "No Fayida" is an administrator's answer;
+  // F01-1 / F01-13 (backend 0138): "No Fayida" is an administrator's answer;
   // a national user chooses the cluster, anyone else's is their own.
   const { can, isGlobalScope, profile } = useAuth();
   const mayAdminister = can("admin", "write");
@@ -184,7 +184,7 @@ export function ParticipantFields({
             max={yearsAgo(settings.participant_min_age)}
             initialYear={new Date().getFullYear() - 22}
             error={errors.date_of_birth}
-            // F01-6 (backend 0137): picked in the Ethiopian calendar; the Gregorian date is what is stored.
+            // F01-6 (backend 0138): picked in the Ethiopian calendar; the Gregorian date is what is stored.
             hint={gregorian ? `Gregorian: ${gregorian}${age !== null ? ` · age ${age}` : ""}` : "Ethiopian calendar (EC)"}
           />
           {age !== null && !errors.date_of_birth ? (

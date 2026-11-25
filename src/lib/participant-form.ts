@@ -31,7 +31,7 @@ export interface FormState {
   sex: "male" | "female" | undefined;
   marital_status: string;
   education_level: string;
-  /** F01-17: what "Other (specify)" is (backend 0137). */
+  /** F01-17: what "Other (specify)" is (backend 0138). */
   education_level_other: string;
   field_of_study: string;
   disability: boolean;
@@ -49,7 +49,7 @@ export interface FormState {
   /** Typed when the woreda is not in the reference list yet. */
   woreda_other: string;
   kebele: string;
-  /** F01-13: the cluster chosen from the list (backend 0137); "" = the API decides. */
+  /** F01-13: the cluster chosen from the list (backend 0138); "" = the API decides. */
   organization_id: string;
   residence_type: string;
   phone: string;
@@ -115,15 +115,15 @@ export const EMPTY: FormState = {
 export const OTHER = "other";
 /**
  * F01-18: no field of study at these education levels (as on the server).
- * "primary" is the code from before the 10 levels (backend 0137), on old records.
+ * "primary" is the code from before the 10 levels (backend 0138), on old records.
  */
 export const NO_STUDY_LEVELS = ["unable_to_read_write", "read_write_informal", "primary", "primary_1_4", "primary_5_8"];
-/** F01-17 "Other (specify)" (backend 0137). */
+/** F01-17 "Other (specify)" (backend 0138). */
 export const EDUCATION_OTHER = "other";
-/** F01-1 (backend 0137): the API refuses a new "No" from anyone but an administrator. */
+/** F01-1 (backend 0138): the API refuses a new "No" from anyone but an administrator. */
 export const NO_FAYIDA_MESSAGE = "Only an administrator can register someone without a Fayida ID: enter the Fayida number (FAN).";
 
-/** Who fills the form, for the F01 rules that depend on it (backend 0137). */
+/** Who fills the form, for the F01 rules that depend on it (backend 0138). */
 export type FormUser = {
   /** Administration write (super admin, programme manager): may answer "No Fayida". */
   mayAdminister: boolean;

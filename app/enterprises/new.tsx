@@ -176,7 +176,7 @@ function EnterpriseForm({
   const [established, setEstablished] = useState(
     initial?.established_date ?? "",
   );
-  // F02A-16/17/28 and the capital's parts (backend 0137).
+  // F02A-16/17/28 and the capital's parts (backend 0138).
   const [started, setStarted] = useState<"" | "yes" | "no">(
     initial?.started_business === true ? "yes" : initial?.started_business === false ? "no" : "",
   );

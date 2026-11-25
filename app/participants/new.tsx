@@ -74,7 +74,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
 
   const locations = useLocations();
   const settings = useSettings();
-  // F01-1 / F01-13 (backend 0137): rules that depend on who registers.
+  // F01-1 / F01-13 (backend 0138): rules that depend on who registers.
   const { can, isGlobalScope } = useAuth();
   const who = { mayAdminister: can("admin", "write"), national: isGlobalScope };
   const woredaListed = () => locations.woredasOf(form.zone).length > 0;

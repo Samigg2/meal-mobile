@@ -319,7 +319,7 @@ export interface ParticipantInput {
   disability_type?: string[] | string;
   disability_type_other?: string;
   education_level?: string;
-  /** F01-17 "Other (specify)" and F01-13 the cluster chosen (backend 0137). */
+  /** F01-17 "Other (specify)" and F01-13 the cluster chosen (backend 0138). */
   education_level_other?: string;
   organization_id?: string;
   marital_status?: string;
@@ -825,7 +825,7 @@ export interface FeedbackInput {
   woreda?: string;
   kebele?: string;
   client_ref: string;
-  // CFRM (0134): disability and RDP (returnee / displaced) status.
+  // CFRM (0135): disability and RDP (returnee / displaced) status.
   reporter_disability?: boolean;
   reporter_rdp?: boolean;
 }
@@ -850,7 +850,7 @@ export interface EnterpriseInput {
   employees_female: number;
   latitude?: number;
   longitude?: number;
-  // F02A-16/17/28 and F02A-18's parts (backend 0115, 0137): the existing
+  // F02A-16/17/28 and F02A-18's parts (backend 0115, 0138): the existing
   // business type only once the business has started; the API works the
   // initial capital out from its parts.
   started_business?: boolean | null;

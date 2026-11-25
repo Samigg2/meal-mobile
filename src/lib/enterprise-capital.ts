@@ -1,5 +1,5 @@
 /**
- * F02A-18 (backend 0137): the initial capital is asked in its parts; the API
+ * F02A-18 (backend 0138): the initial capital is asked in its parts; the API
  * (and the database) work the total out from them, as the web does.
  */
 export const CAPITAL_PARTS = [

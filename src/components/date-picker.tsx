@@ -50,7 +50,7 @@ type Ymd = { year: number; month: number; day: number };
 
 /**
  * What the sheet needs from a calendar (months 1-based). The value is always
- * the Gregorian ISO date the API stores; only the grid changes (0137: the
+ * the Gregorian ISO date the API stores; only the grid changes (0138: the
  * F01 date of birth is picked in the Ethiopian calendar, like the web's
  * EthiopianDateInput).
  */

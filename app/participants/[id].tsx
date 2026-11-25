@@ -69,7 +69,7 @@ export default function ParticipantDetail() {
   };
   const female = participant.sex === "female";
   const t = female ? topics.female : topics.participants;
-  // F01-17 (backend 0137): the level's label; "Other: …" for Other; an old code reads as itself.
+  // F01-17 (backend 0138): the level's label; "Other: …" for Other; an old code reads as itself.
   const educationOther = (participant as { education_level_other?: string | null }).education_level_other;
   const educationLabel =
     participant.education_level === "other" && educationOther
@@ -181,7 +181,7 @@ export default function ParticipantDetail() {
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
         <Row label="Sex" value={capital(participant.sex)} />
-        {/* F01-6 (backend 0137): the Ethiopian date first, the stored Gregorian one beside it. */}
+        {/* F01-6 (backend 0138): the Ethiopian date first, the stored Gregorian one beside it. */}
         <Row
           label="Date of birth"
           value={

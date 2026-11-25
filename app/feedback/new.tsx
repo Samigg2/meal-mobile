@@ -96,7 +96,7 @@ function rowToInitial(r: FeedbackRow): FeedbackInput {
     woreda: text("woreda"),
     kebele: text("kebele"),
     client_ref: "",
-    // CFRM (0134)
+    // CFRM (0135)
     reporter_disability: x.reporter_disability === true,
     reporter_rdp: x.reporter_rdp === true,
   };
@@ -141,7 +141,7 @@ function FeedbackForm({
     initial?.response_wanted ?? true,
   );
   const [referredTo, setReferredTo] = useState(initial?.referred_to ?? "");
-  // CFRM (0134): disability and RDP (returnee / displaced) status.
+  // CFRM (0135): disability and RDP (returnee / displaced) status.
   const [disability, setDisability] = useState(
     initial?.reporter_disability ?? false,
   );
@@ -336,7 +336,7 @@ function FeedbackForm({
             hint="Only if they agree to be called back."
             error={errors.reporter_contact}
           />
-          {/* CFRM (0134) */}
+          {/* CFRM (0135) */}
           <Toggle
             label="Has a disability"
             value={disability}
