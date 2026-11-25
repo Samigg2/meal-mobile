@@ -14,6 +14,8 @@ import {
 import { getParticipantDetail, REPAYABLE } from "@/lib/data";
 import { initialsOf } from "@/lib/user";
 import { useAuth } from "@/lib/auth";
+import { formatEthiopian } from "@/lib/ethiopian-calendar";
+import { useLookupOptions } from "@/lib/reference";
 import {
   Button,
   Card,
@@ -33,6 +35,7 @@ export default function ParticipantDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { can } = useAuth();
+  const educationLevels = useLookupOptions("participants.education_level");
   const { data, isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ["participant-detail", id],
     queryFn: () => getParticipantDetail(id),
@@ -66,6 +69,13 @@ export default function ParticipantDetail() {
   };
   const female = participant.sex === "female";
   const t = female ? topics.female : topics.participants;
+  // F01-17 (backend 0137): the level's label; "Other: …" for Other; an old code reads as itself.
+  const educationOther = (participant as { education_level_other?: string | null }).education_level_other;
+  const educationLabel =
+    participant.education_level === "other" && educationOther
+      ? `Other: ${educationOther}`
+      : (educationLevels.find((o) => o.value === participant.education_level)?.label ??
+        capital(participant.education_level));
   const location = [
     participant.kebele,
     participant.woreda,
@@ -171,9 +181,17 @@ export default function ParticipantDetail() {
       <Card style={styles.card}>
         <Text style={styles.sectionTitle}>Details</Text>
         <Row label="Sex" value={capital(participant.sex)} />
-        <Row label="Date of birth" value={participant.date_of_birth} />
+        {/* F01-6 (backend 0137): the Ethiopian date first, the stored Gregorian one beside it. */}
+        <Row
+          label="Date of birth"
+          value={
+            participant.date_of_birth
+              ? `${formatEthiopian(participant.date_of_birth)} (${participant.date_of_birth.slice(0, 10)})`
+              : null
+          }
+        />
         <Row label="Phone" value={participant.phone} />
-        <Row label="Education" value={capital(participant.education_level)} />
+        <Row label="Education" value={educationLabel} />
         <Row label="Location" value={location} last />
       </Card>
 

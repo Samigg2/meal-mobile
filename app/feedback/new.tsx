@@ -96,6 +96,9 @@ function rowToInitial(r: FeedbackRow): FeedbackInput {
     woreda: text("woreda"),
     kebele: text("kebele"),
     client_ref: "",
+    // CFRM (0134)
+    reporter_disability: x.reporter_disability === true,
+    reporter_rdp: x.reporter_rdp === true,
   };
 }
 
@@ -138,6 +141,11 @@ function FeedbackForm({
     initial?.response_wanted ?? true,
   );
   const [referredTo, setReferredTo] = useState(initial?.referred_to ?? "");
+  // CFRM (0134): disability and RDP (returnee / displaced) status.
+  const [disability, setDisability] = useState(
+    initial?.reporter_disability ?? false,
+  );
+  const [rdp, setRdp] = useState(initial?.reporter_rdp ?? false);
   const [place, setPlace] = useState({
     region: initial?.region ?? "",
     zone: initial?.zone ?? "",
@@ -194,6 +202,8 @@ function FeedbackForm({
       woreda: place.woreda.trim() || undefined,
       kebele: kebele.trim() || undefined,
       client_ref: clientRef,
+      reporter_disability: disability,
+      reporter_rdp: rdp,
     };
     setSaving(true);
     try {
@@ -325,6 +335,17 @@ function FeedbackForm({
             keyboardType="phone-pad"
             hint="Only if they agree to be called back."
             error={errors.reporter_contact}
+          />
+          {/* CFRM (0134) */}
+          <Toggle
+            label="Has a disability"
+            value={disability}
+            onChange={setDisability}
+          />
+          <Toggle
+            label="Returnee / displaced (RDP)"
+            value={rdp}
+            onChange={setRdp}
           />
         </FormCard>
         <FormCard title="Where">

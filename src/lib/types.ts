@@ -18,7 +18,7 @@ export type EmploymentType = "wage_employment" | "self_employment" | "apprentice
 export type EnterpriseStatus = "active" | "inactive" | "graduated" | "dropped";
 export type EnterpriseType = "trade" | "service" | "manufacturing" | "agriculture" | "technology" | "other";
 export type FeedbackSource = "helpline" | "suggestion_box" | "meeting" | "survey" | "other";
-export type FeedbackStatus = "new" | "in_review" | "resolved" | "closed";
+export type FeedbackStatus = "new" | "in_review" | "resolved" | "closed" | "referred" | "reopened" | "unresolvable";
 export type FeedbackType = "complaint" | "suggestion" | "compliment" | "query";
 export type FspType = "bank" | "microfinance" | "cooperative" | "saving_group" | "fintech" | "other";
 export type GovernanceEngagementType = "stakeholder_meeting" | "policy_dialogue" | "advocacy_action" | "coordination_forum" | "consultation" | "other";
@@ -158,6 +158,73 @@ export interface BdsServiceRow {
   enterprise_measures: string | null;
   next_follow_up_date: string | null;
   client_ref: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessPlanRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  enterprise_id: string | null;
+  participant_id: string | null;
+  plan_date: string;
+  business_stage: string | null;
+  value_chain: string | null;
+  value_chain_other: string | null;
+  sub_value_chain: string | null;
+  members_count: number | null;
+  products: string;
+  customer_need: string | null;
+  competitive_edge: string | null;
+  production_target: string | null;
+  target_market: string;
+  competitors: string | null;
+  sales_channels: string | null;
+  selling_price_basis: string | null;
+  market_linkages: string | null;
+  fixed_investment: number | null;
+  working_capital: number | null;
+  capital_required: number | null;
+  capital_own: number | null;
+  capital_loan: number | null;
+  capital_grant: number | null;
+  capital_other: number | null;
+  financing_gap: number | null;
+  projection_basis: string | null;
+  projected_revenue: number | null;
+  projected_costs: number | null;
+  projected_profit: number | null;
+  break_even: string | null;
+  risks: string | null;
+  support_needs: string[];
+  prepared_by_name: string | null;
+  lsp_id: string | null;
+  approval_status: string;
+  submitted_at: string | null;
+  reviewed_by: string | null;
+  reviewed_on: string | null;
+  review_notes: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClimateInfoRecordRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  season: string;
+  season_year: number;
+  sources: string[];
+  source_other: string | null;
+  used_info: boolean;
+  how_used: string | null;
+  notes: string | null;
   custom: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -306,6 +373,22 @@ export interface EnterpriseCashEntryRow {
   total_price: number | null;
   receipt_ref: string | null;
   recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnterpriseFormationStepRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  enterprise_id: string;
+  step: string;
+  status: string;
+  completed_on: string | null;
+  reference: string | null;
+  issued_by: string | null;
+  evidence_link: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -531,6 +614,11 @@ export interface EnterpriseRow {
   in_eysla: boolean | null;
   clustering_name: string | null;
   is_model: boolean | null;
+  capital_own: number | null;
+  capital_loan: number | null;
+  capital_grant: number | null;
+  capital_in_kind: number | null;
+  capital_other: number | null;
 }
 
 export interface EvaluationRow {
@@ -602,7 +690,7 @@ export interface FeedbackRow {
   feedback_type: "complaint" | "suggestion" | "compliment" | "query";
   source: string;
   description: string;
-  status: "new" | "in_review" | "resolved" | "closed";
+  status: "new" | "in_review" | "resolved" | "closed" | "referred" | "reopened" | "unresolvable";
   resolution: string | null;
   created_at: string;
   updated_at: string;
@@ -631,6 +719,13 @@ export interface FeedbackRow {
   kebele: string | null;
   client_ref: string | null;
   referred: boolean | null;
+  reporter_disability: boolean | null;
+  reporter_rdp: boolean | null;
+  sensitivity: string | null;
+  referral_date: string | null;
+  next_plan: string | null;
+  reporter_satisfaction: string | null;
+  days_to_close: number | null;
 }
 
 export interface FinancialServiceProviderRow {
@@ -834,6 +929,33 @@ export interface InstitutionRow {
   contact_position: string | null;
   due_diligence_status: string | null;
   due_diligence_date: string | null;
+}
+
+export interface InsurancePolicyRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  participant_id: string;
+  enterprise_id: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  premium_own: number;
+  premium_subsidy: number;
+  premium_total: number | null;
+  purchase_date: string;
+  cover_start: string | null;
+  cover_end: string | null;
+  product: string;
+  product_other: string | null;
+  value_chain: string | null;
+  claims_paid: number;
+  insurer_name: string;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface KnowledgeResourceRow {
@@ -1231,6 +1353,21 @@ export interface MaterialDistributionRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  purpose: string | null;
+  programme: string | null;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  recipient_type: string;
+  recipient_institution_id: string | null;
+  recipient_org_name: string | null;
+  recipient_contact_person: string | null;
+  recipient_contact_phone: string | null;
+  distributed_by: string | null;
+  authorized_by: string | null;
 }
 
 export interface MaterialSupportRow {
@@ -1278,6 +1415,24 @@ export interface OrganizationRow {
   created_at: string;
   updated_at: string;
   region: string | null;
+}
+
+export interface ParticipantSavingRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  report_month: string;
+  participant_id: string;
+  enterprise_id: string | null;
+  institution_type: string;
+  provider_id: string | null;
+  branch_name: string | null;
+  account_number: string | null;
+  net_saving: number;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ParticipantRow {
@@ -1348,6 +1503,7 @@ export interface ParticipantRow {
   registration_site: string | null;
   gps_lat: number | null;
   gps_lng: number | null;
+  education_level_other: string | null;
 }
 
 export interface PartnershipActivityRow {
@@ -1493,6 +1649,37 @@ export interface RegistrationStatusTokenRow {
   created_at: string;
 }
 
+export interface ResearchStudyRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  title: string;
+  focus_area: string;
+  study_type: string;
+  study_type_other: string | null;
+  objectives: string;
+  lead_id: string | null;
+  conducted_by: string | null;
+  start_date: string;
+  end_date: string;
+  status: string;
+  budget: number | null;
+  currency: string;
+  target_audience: string;
+  key_findings: string | null;
+  key_recommendations: string | null;
+  follow_up_actions: string | null;
+  dissemination: string | null;
+  dissemination_date: string | null;
+  report_link: string | null;
+  evaluation_id: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface RoleDashboardRow {
   id: string;
   role: string;
@@ -1524,6 +1711,42 @@ export interface RoleRow {
   id: string;
 }
 
+export interface RusaccoPerformanceRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  provider_id: string;
+  period_type: string;
+  period_start: string;
+  period_end: string;
+  total_youth_members: number | null;
+  rayee_members_female: number;
+  rayee_members_male: number;
+  rayee_members_total: number | null;
+  rayee_members_pwd: number;
+  rayee_members_returnee_idp: number;
+  rayee_share_capital: number | null;
+  total_share_capital: number | null;
+  rayee_compulsory_savings: number | null;
+  total_compulsory_savings: number | null;
+  rayee_voluntary_savings: number | null;
+  total_voluntary_savings: number | null;
+  rayee_loans_disbursed: number | null;
+  rayee_loans_repaid: number | null;
+  rayee_loans_outstanding: number | null;
+  total_loans_disbursed: number | null;
+  total_loans_repaid: number | null;
+  total_loans_outstanding: number | null;
+  loans_due: number | null;
+  par30_amount: number | null;
+  borrowers_youth: number | null;
+  borrowers_women: number | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SaccoMembershipRow {
   id: string;
   organization_id: string | null;
@@ -1536,6 +1759,8 @@ export interface SaccoMembershipRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  share_value: number | null;
+  enterprise_id: string | null;
 }
 
 export interface SafeguardingActivityRow {
@@ -2059,6 +2284,128 @@ export interface WorkplanActivityPeriodRow {
   updated_at: string;
 }
 
+export interface YagActivityRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  yag_group_id: string;
+  activity_type: string;
+  title: string | null;
+  activity_date: string;
+  location: string | null;
+  components: string[];
+  members_present: number;
+  female_present: number;
+  pwd_present: number;
+  others_present: number;
+  agenda: string | null;
+  findings: string | null;
+  youth_consulted: number;
+  issues_identified: number;
+  issues_referred: number;
+  recommendations: string | null;
+  recommendations_count: number;
+  follow_up: string | null;
+  minutes_link: string | null;
+  status: string;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface YagGroupRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  code: string;
+  name: string;
+  programme: string;
+  implementing_partner: string | null;
+  region: string;
+  zone: string | null;
+  woreda: string | null;
+  established_on: string | null;
+  meeting_frequency: string | null;
+  tor_adopted: boolean;
+  focal_person_id: string | null;
+  status: string;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface YagMemberRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  yag_group_id: string;
+  participant_id: string | null;
+  full_name: string | null;
+  sex: string | null;
+  age: number | null;
+  phone: string | null;
+  pwd: boolean;
+  displacement_status: string;
+  region: string | null;
+  zone: string | null;
+  woreda: string | null;
+  role: string;
+  joined_on: string;
+  left_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface YagReviewRow {
+  id: string;
+  organization_id: string | null;
+  created_by: string;
+  yag_group_id: string;
+  period_start: string;
+  period_end: string;
+  review_date: string;
+  meetings_planned: number | null;
+  meetings_held: number | null;
+  attendance_rate: number | null;
+  guideline_compliance: string | null;
+  reports_on_time: boolean | null;
+  consultations_held: number | null;
+  active_members_pct: number | null;
+  stakeholder_meetings_attended: number | null;
+  components_engaged: number | null;
+  concerns_presented: number | null;
+  field_visits_planned: number | null;
+  field_visits_done: number | null;
+  barriers_identified: number | null;
+  issues_referred: number | null;
+  recommendations_made: number | null;
+  recommendations_responded: number | null;
+  actions_agreed: number | null;
+  actions_completed: number | null;
+  improvements_verified: number | null;
+  findings_communicated_pct: number | null;
+  meetings_held_pct: number | null;
+  field_visits_pct: number | null;
+  issues_referred_pct: number | null;
+  recommendations_responded_pct: number | null;
+  actions_completed_pct: number | null;
+  score_governance: number | null;
+  score_participation: number | null;
+  score_engagement: number | null;
+  score_field_monitoring: number | null;
+  score_accountability: number | null;
+  strengths: string | null;
+  challenges: string | null;
+  recommendations: string | null;
+  reviewed_by: string | null;
+  notes: string | null;
+  custom: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface YiwFollowUpRow {
   id: string;
   organization_id: string | null;
@@ -2127,6 +2474,23 @@ export interface YslaCycleRow {
   share_out_rejection_reason: string | null;
 }
 
+export interface YslaFollowUpRow {
+  id: string;
+  organization_id: string | null;
+  group_id: string;
+  animator_id: string | null;
+  follow_up_date: string;
+  services: string[];
+  service_other: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  notes: string | null;
+  client_ref: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface YslaGroupMemberRow {
   id: string;
   organization_id: string | null;
@@ -2139,6 +2503,7 @@ export interface YslaGroupMemberRow {
   status: string;
   exit_date: string | null;
   updated_at: string;
+  enterprise_id: string | null;
 }
 
 export interface YslaGroupRow {
@@ -2167,6 +2532,15 @@ export interface YslaGroupRow {
   secretary_id: string | null;
   treasurer_id: string | null;
   last_report_month: string | null;
+  animator_id: string | null;
+  enterprise_ids: string[];
+  location_name: string | null;
+  orientation_date: string | null;
+  saving_start_date: string | null;
+  meeting_day_time: string | null;
+  meeting_place: string | null;
+  social_fund_per_meeting: number | null;
+  service_charge_pct: number | null;
 }
 
 export interface YslaReportRow {
@@ -2189,4 +2563,15 @@ export interface YslaReportRow {
   created_by: string;
   created_at: string;
   updated_at: string;
+  animator_id: string | null;
+  members_female: number | null;
+  members_male: number | null;
+  savings_this_month: number | null;
+  social_fund_this_month: number | null;
+  loans_given_count: number | null;
+  loans_given_value: number | null;
+  repayments_this_month: number | null;
+  share_out_this_month: number | null;
+  borrower_enterprise_ids: string[];
+  loan_purpose: string | null;
 }

@@ -4,6 +4,13 @@ import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/ui";
 import { colors, radius, spacing, TOUCH } from "@/theme";
+import {
+  daysInEthiopianMonth,
+  ETHIOPIAN_MONTHS,
+  ethiopianToIso,
+  formatEthiopian,
+  isoToEthiopian,
+} from "@/lib/ethiopian-calendar";
 
 /**
  * A calendar date field, drawn in JavaScript so it looks the same on Android
@@ -39,6 +46,41 @@ export function formatDate(value: string): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+type Ymd = { year: number; month: number; day: number };
+
+/**
+ * What the sheet needs from a calendar (months 1-based). The value is always
+ * the Gregorian ISO date the API stores; only the grid changes (0137: the
+ * F01 date of birth is picked in the Ethiopian calendar, like the web's
+ * EthiopianDateInput).
+ */
+type Calendar = {
+  months: readonly string[];
+  daysIn: (year: number, month: number) => number;
+  toIso: (d: Ymd) => string;
+  fromIso: (iso: string) => Ymd | null;
+  format: (iso: string) => string;
+};
+
+const GREGORIAN: Calendar = {
+  months: MONTHS,
+  daysIn: (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate(),
+  toIso: ({ year, month, day }) => iso(year, month - 1, day),
+  fromIso: (value) => {
+    const [y, m, d] = value.split("-").map(Number);
+    return y && m && d ? { year: y, month: m, day: d } : null;
+  },
+  format: formatDate,
+};
+
+const ETHIOPIAN: Calendar = {
+  months: ETHIOPIAN_MONTHS,
+  daysIn: daysInEthiopianMonth,
+  toIso: ethiopianToIso,
+  fromIso: isoToEthiopian,
+  format: formatEthiopian,
+};
+
 export function DateField({
   label,
   required,
@@ -51,6 +93,7 @@ export function DateField({
   max,
   initialYear,
   clearable,
+  calendar = "gregorian",
 }: {
   label: string;
   required?: boolean;
@@ -68,8 +111,11 @@ export function DateField({
   initialYear?: number;
   /** An optional date: shows "Clear date" once one is picked. */
   clearable?: boolean;
+  /** The grid to pick on; the value stays the Gregorian ISO date either way. */
+  calendar?: "gregorian" | "ethiopian";
 }) {
   const [open, setOpen] = useState(false);
+  const cal = calendar === "ethiopian" ? ETHIOPIAN : GREGORIAN;
   return (
     <View style={styles.field}>
       <Text style={styles.label}>
@@ -78,13 +124,13 @@ export function DateField({
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${label}${value ? `, ${formatDate(value)}` : ""}`}
+        accessibilityLabel={`${label}${value ? `, ${cal.format(value)}` : ""}`}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.trigger, !!error && styles.triggerError, pressed && styles.pressed]}
       >
         <CalendarDays size={18} color={value ? colors.primary : colors.faint} />
         <Text style={[styles.triggerText, !value && styles.placeholder]} numberOfLines={1}>
-          {value ? formatDate(value) : placeholder}
+          {value ? cal.format(value) : placeholder}
         </Text>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
@@ -98,6 +144,7 @@ export function DateField({
       {open ? (
         <CalendarSheet
           title={label}
+          cal={cal}
           value={value}
           min={min}
           max={max}
@@ -115,6 +162,7 @@ export function DateField({
 
 function CalendarSheet({
   title,
+  cal,
   value,
   min,
   max,
@@ -123,6 +171,7 @@ function CalendarSheet({
   onPick,
 }: {
   title: string;
+  cal: Calendar;
   value: string;
   min?: string;
   max?: string;
@@ -133,28 +182,32 @@ function CalendarSheet({
   const insets = useSafeAreaInsets();
   const today = todayISO();
   const start = value || (initialYear ? `${initialYear}-01-01` : (max && max < today ? max : today));
-  const [year, setYear] = useState(Number(start.slice(0, 4)));
-  const [month, setMonth] = useState(Number(start.slice(5, 7)) - 1);
+  const startDate = cal.fromIso(start) ?? cal.fromIso(today)!;
+  const thisYear = cal.fromIso(today)!.year;
+  const [year, setYear] = useState(startDate.year);
+  // 0-based, as the month strip counts.
+  const [month, setMonth] = useState(startDate.month - 1);
   const [mode, setMode] = useState<"days" | "years">("days");
+  const count = cal.months.length;
+  const at = (day: number) => cal.toIso({ year, month: month + 1, day });
 
-  const minYear = min ? Number(min.slice(0, 4)) : Number(today.slice(0, 4)) - 100;
-  const maxYear = max ? Number(max.slice(0, 4)) : Number(today.slice(0, 4)) + 10;
+  const minYear = min ? (cal.fromIso(min)?.year ?? thisYear - 100) : thisYear - 100;
+  const maxYear = max ? (cal.fromIso(max)?.year ?? thisYear + 10) : thisYear + 10;
   const allowed = (d: string) => (!min || d >= min) && (!max || d <= max);
 
+  const daysIn = cal.daysIn(year, month + 1);
   // Monday-first grid with leading blanks.
   const cells = useMemo(() => {
-    const first = (new Date(Date.UTC(year, month, 1)).getUTCDay() + 6) % 7;
-    const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    return [...Array<null>(first).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
-  }, [year, month]);
+    const first = (new Date(`${cal.toIso({ year, month: month + 1, day: 1 })}T00:00:00Z`).getUTCDay() + 6) % 7;
+    return [...Array<null>(first).fill(null), ...Array.from({ length: daysIn }, (_, i) => i + 1)];
+  }, [cal, year, month, daysIn]);
 
-  const daysIn = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const canPrev = !min || iso(year, month, 1) > min;
-  const canNext = !max || iso(year, month, daysIn) < max;
+  const canPrev = !min || at(1) > min;
+  const canNext = !max || at(daysIn) < max;
   const step = (delta: number) => {
     const m = month + delta;
-    setYear(year + Math.floor(m / 12));
-    setMonth(((m % 12) + 12) % 12);
+    setYear(year + Math.floor(m / count));
+    setMonth(((m % count) + count) % count);
   };
 
   return (
@@ -186,7 +239,7 @@ function CalendarSheet({
               style={styles.monthButton}
             >
               <Text style={styles.monthText}>
-                {MONTHS[month]} {year}
+                {cal.months[month]} {year}
               </Text>
               <ChevronDown
                 size={18}
@@ -218,7 +271,7 @@ function CalendarSheet({
           ) : (
             <>
               <View style={styles.monthStrip}>
-                {MONTHS.map((m, i) => (
+                {cal.months.map((m, i) => (
                   <Pressable
                     key={m}
                     onPress={() => setMonth(i)}
@@ -238,7 +291,7 @@ function CalendarSheet({
               <View style={styles.grid}>
                 {cells.map((day, i) => {
                   if (day === null) return <View key={`b${i}`} style={styles.cell} />;
-                  const date = iso(year, month, day);
+                  const date = at(day);
                   const ok = allowed(date);
                   const selected = date === value;
                   const isToday = date === today;
@@ -246,7 +299,7 @@ function CalendarSheet({
                     <View key={date} style={styles.cell}>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={formatDate(date)}
+                        accessibilityLabel={cal.format(date)}
                         accessibilityState={{ selected, disabled: !ok }}
                         disabled={!ok}
                         onPress={() => onPick(date)}

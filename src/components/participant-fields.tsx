@@ -2,13 +2,15 @@ import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { StyleSheet, View } from "react-native";
 import { Heart, Home, IdCard, MapPin, ShieldCheck, Sprout, User } from "lucide-react-native";
 import { Badge, ChoiceRow, ErrorText, Field, Section, Select, Text, Toggle } from "@/components/ui";
-import { DateField } from "@/components/date-picker";
+import { DateField, formatDate } from "@/components/date-picker";
 import { GpsField } from "@/components/field-form";
 import { useRegionChoices } from "@/lib/region-lock";
 import { useLocations, useLookupOptions, useSettings } from "@/lib/reference";
 import { useLeadFirms } from "@/lib/lead-firms";
-import { formatEthiopian } from "@/lib/ethiopian-calendar";
+import { useClusters } from "@/lib/clusters";
+import { useAuth } from "@/lib/auth";
 import {
+  EDUCATION_OTHER,
   NO_STUDY_LEVELS,
   OTHER,
   PREFERENCES,
@@ -38,6 +40,7 @@ export function ParticipantFields({
   errors,
   identitySlot,
   consentLocked = false,
+  editing = false,
 }: {
   /** 0-based step (STEPS in participant-form). */
   step: number;
@@ -50,6 +53,8 @@ export function ParticipantFields({
   identitySlot?: ReactNode;
   /** Edit: consent is withdrawn from the record's page, not unticked here. */
   consentLocked?: boolean;
+  /** Edit: the cluster is shown, not chosen (a reviewer moves a record). */
+  editing?: boolean;
 }) {
   const education = useLookupOptions("participants.education_level");
   const marital = useLookupOptions("participants.marital_status");
@@ -63,6 +68,16 @@ export function ParticipantFields({
   const wage = form.employment_preference === "wage";
   const { leadFirms, isLoading: leadFirmsLoading } = useLeadFirms(wage);
   const regionChoices = useRegionChoices(form.region);
+  // F01-1 / F01-13 (backend 0137): "No Fayida" is an administrator's answer;
+  // a national user chooses the cluster, anyone else's is their own.
+  const { can, isGlobalScope, profile } = useAuth();
+  const mayAdminister = can("admin", "write");
+  const fayidaOptions = mayAdminister || form.has_fayida === "no" ? YES_NO : YES_NO.filter((o) => o.value === "yes");
+  const { clusters } = useClusters();
+  const chooseCluster = isGlobalScope && !editing;
+  const clusterOptions = clusters.filter((c) => !form.region || !c.region || c.region === form.region);
+  const shownClusterId = form.organization_id || profile?.organization_id || "";
+  const shownCluster = clusters.find((c) => c.value === shownClusterId)?.label ?? "Your cluster";
   // A cluster's own region is filled in for it, as on the web (set while
   // rendering, React's way to adjust state from what was just read).
   if (regionChoices.locked && !form.region) setForm((p) => (p.region ? p : { ...p, region: regionChoices.locked! }));
@@ -72,7 +87,7 @@ export function ParticipantFields({
   const age = isRealDate(form.date_of_birth) && form.date_of_birth <= todayISO() ? ageOn(form.date_of_birth) : null;
   const youthBand = `${settings.youth_min_age}–${settings.youth_max_age}`;
   const isYouth = age !== null && age >= settings.youth_min_age && age <= settings.youth_max_age;
-  const ethiopian = form.date_of_birth ? formatEthiopian(form.date_of_birth) : "";
+  const gregorian = form.date_of_birth ? formatDate(form.date_of_birth) : "";
   const studies = form.education_level !== "" && !NO_STUDY_LEVELS.includes(form.education_level);
   const taken = (key: "priority_1" | "priority_2" | "priority_3") =>
     sectors.filter((s) => s.value === form[key] || ![form.priority_1, form.priority_2, form.priority_3].includes(s.value));
@@ -85,10 +100,13 @@ export function ParticipantFields({
             label="Has a National ID (Fayida)?"
             required
             value={form.has_fayida || undefined}
-            options={YES_NO}
+            options={fayidaOptions}
             onChange={(v) => update("has_fayida", v as YesNo, true)}
             error={errors.has_fayida}
           />
+          {!mayAdminister && form.has_fayida !== "no" ? (
+            <Text style={styles.hint}>Without a Fayida ID, an administrator registers the person.</Text>
+          ) : null}
           {form.has_fayida !== "no" ? (
             <>
               <Field
@@ -156,7 +174,8 @@ export function ParticipantFields({
       {step === 1 ? (
         <Section title="Personal details" icon={User}>
           <DateField
-            label="Date of birth"
+            label="Date of birth (EC)"
+            calendar="ethiopian"
             required
             value={form.date_of_birth}
             onChange={(v) => update("date_of_birth", v, true)}
@@ -165,7 +184,8 @@ export function ParticipantFields({
             max={yearsAgo(settings.participant_min_age)}
             initialYear={new Date().getFullYear() - 22}
             error={errors.date_of_birth}
-            hint={ethiopian ? `Ethiopian calendar: ${ethiopian}${age !== null ? ` · age ${age}` : ""}` : undefined}
+            // F01-6 (backend 0137): picked in the Ethiopian calendar; the Gregorian date is what is stored.
+            hint={gregorian ? `Gregorian: ${gregorian}${age !== null ? ` · age ${age}` : ""}` : "Ethiopian calendar (EC)"}
           />
           {age !== null && !errors.date_of_birth ? (
             <View style={styles.badgeRow}>
@@ -215,6 +235,18 @@ export function ParticipantFields({
             placeholder="Select education level"
             error={errors.education_level}
           />
+          {form.education_level === EDUCATION_OTHER ? (
+            <Field
+              label="Other education level"
+              required
+              value={form.education_level_other}
+              onChangeText={(v) => update("education_level_other", v)}
+              maxLength={100}
+              placeholder="Say which"
+              onBlur={() => checkField("education_level_other")}
+              error={errors.education_level_other}
+            />
+          ) : null}
           {studies ? (
             <Select
               label="Field of study"
@@ -346,7 +378,10 @@ export function ParticipantFields({
               value={form.region}
               options={regionChoices.regions}
               onChange={(v) => {
-                const next = { ...form, region: v, zone: "", woreda: "", woreda_other: "" };
+                // A cluster covers one region: one chosen for another region goes.
+                const cluster = clusters.find((c) => c.value === form.organization_id);
+                const organization_id = cluster?.region && cluster.region !== v ? "" : form.organization_id;
+                const next = { ...form, region: v, zone: "", woreda: "", woreda_other: "", organization_id };
                 setForm(next);
                 checkField("region", next);
               }}
@@ -400,6 +435,20 @@ export function ParticipantFields({
               onBlur={() => checkField("kebele")}
               error={errors.kebele}
             />
+            {chooseCluster ? (
+              <Select
+                label="Cluster"
+                required
+                value={form.organization_id}
+                options={clusterOptions}
+                onChange={(v) => update("organization_id", v, true)}
+                placeholder={form.region ? "Select cluster" : "Select the region first"}
+                hint="The RAYEE II cluster for this region."
+                error={errors.organization_id}
+              />
+            ) : (
+              <Field label="Cluster" value={shownCluster} editable={false} />
+            )}
             <Select
               label="Residence location type"
               required

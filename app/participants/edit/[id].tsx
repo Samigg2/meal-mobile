@@ -19,6 +19,7 @@ import {
   type FormState,
 } from "@/lib/participant-form";
 import { useLocations, useSettings } from "@/lib/reference";
+import { useAuth } from "@/lib/auth";
 import { Button, EmptyState, ErrorText, ListSkeleton, StepBar, StickyFooter, Text } from "@/components/ui";
 import { ParticipantFields } from "@/components/participant-fields";
 import { colors, spacing } from "@/lib/theme";
@@ -105,6 +106,8 @@ function EditForm({
   const scroll = useRef<ScrollView>(null);
   const locations = useLocations();
   const settings = useSettings();
+  // F01-1 (backend 0137): a new "No Fayida" only by an administrator.
+  const { can } = useAuth();
   const original = () => fromRecord(participant as unknown as Record<string, unknown>, locations.woredasOf);
   const [form, setForm] = useState<FormState>(() =>
     fromRecord({ ...participant, ...(pending as Record<string, unknown>) } as Record<string, unknown>, locations.woredasOf),
@@ -114,10 +117,11 @@ function EditForm({
   const [saving, setSaving] = useState(false);
   const [queuedNotice, setQueuedNotice] = useState(false);
   const woredaListed = (zone: string) => locations.woredasOf(zone).length > 0;
+  const who = { mayAdminister: can("admin", "write"), national: false, storedHasFayida: original().has_fayida };
 
   /** The web's rules for one field, shown when it is left or picked (not only on Save). */
   function checkField(key: keyof FormState, next: FormState = form) {
-    const found = validate(next, woredaListed(next.zone), settings, "edit");
+    const found = validate(next, woredaListed(next.zone), settings, "edit", who);
     const keys: (keyof FormState)[] = key === "national_id" || key === "kebele_id" ? ["national_id", "kebele_id"] : [key];
     setErrors((prev) => {
       const out = { ...prev, form: undefined };
@@ -141,7 +145,7 @@ function EditForm({
   }
 
   function goNext() {
-    const found = validate(form, woredaListed(form.zone), settings, "edit") as Record<string, string>;
+    const found = validate(form, woredaListed(form.zone), settings, "edit", who) as Record<string, string>;
     const here = Object.fromEntries(Object.entries(found).filter(([k]) => STEP_FIELDS[step].includes(k)));
     if (Object.keys(here).length > 0) {
       showErrors(here as FormErrors);
@@ -157,7 +161,7 @@ function EditForm({
   }
 
   async function handleSave() {
-    const found = validate(form, woredaListed(form.zone), settings, "edit");
+    const found = validate(form, woredaListed(form.zone), settings, "edit", who);
     if (Object.keys(found).length > 0) {
       const count = Object.keys(found).length;
       showErrors({ ...found, form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.` });
@@ -218,6 +222,7 @@ function EditForm({
           </Text>
         ) : null}
         <ParticipantFields
+          editing
           step={step}
           form={form}
           setForm={setForm}

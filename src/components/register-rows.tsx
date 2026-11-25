@@ -124,7 +124,16 @@ const words = (s?: string | null) => {
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
-const FEEDBACK_TONE: Record<string, PillTone> = { new: "blue", in_review: "amber", resolved: "green", closed: "grey" };
+const FEEDBACK_TONE: Record<string, PillTone> = {
+  new: "blue",
+  in_review: "amber",
+  resolved: "green",
+  closed: "grey",
+  // CFRM (0134)
+  referred: "blue",
+  reopened: "amber",
+  unresolvable: "grey",
+};
 
 export function feedbackRow(f: FeedbackRow, open?: () => void): Row {
   return {

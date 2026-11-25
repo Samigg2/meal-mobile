@@ -29,7 +29,15 @@ import {
   type GpsPoint,
 } from "@/components/field-form";
 import { DateField } from "@/components/date-picker";
-import { Button, EmptyState, Field, Loading, Select } from "@/components/ui";
+import { Button, ChoiceRow, EmptyState, Field, Loading, Select } from "@/components/ui";
+import {
+  CAPITAL_PARTS,
+  EMPTY_CAPITAL,
+  capitalError,
+  capitalPayload,
+  capitalTotal,
+  type CapitalForm,
+} from "@/lib/enterprise-capital";
 
 const TIN_RE = /^\d{10}$/;
 /** A TIN is asked for a Formal enterprise (DMIS F02A-3), or "registered" on an older list. */
@@ -110,9 +118,25 @@ function rowToInitial(
     employees_female: Number(r.employees_female ?? 0),
     latitude: r.latitude != null ? Number(r.latitude) : undefined,
     longitude: r.longitude != null ? Number(r.longitude) : undefined,
+    started_business: r.started_business ?? null,
+    business_start_date: r.business_start_date ? r.business_start_date.slice(0, 10) : null,
+    existing_business_type: r.existing_business_type ?? null,
+    ...capitalOf(r as unknown as Record<string, unknown>),
     client_ref: "",
   };
 }
+
+/** The capital parts as stored (numeric comes back as text), or null. */
+function capitalOf(r: Record<string, unknown>) {
+  return Object.fromEntries(
+    CAPITAL_PARTS.map((p) => [p.name, r[p.name] == null || r[p.name] === "" ? null : Number(r[p.name])]),
+  ) as Record<(typeof CAPITAL_PARTS)[number]["name"], number | null>;
+}
+
+const YES_NO = [
+  { label: "Yes", value: "yes" as const },
+  { label: "No", value: "no" as const },
+];
 
 function EnterpriseForm({
   initial,
@@ -132,6 +156,7 @@ function EnterpriseForm({
   const router = useRouter();
   const scroll = useRef<ScrollView>(null);
   const sectors = useLookupOptions("enterprise.sector");
+  const existingTypes = useLookupOptions("enterprises.existing_business_type");
   const statuses = useLookupOptions("enterprises.registration_status");
   const [name, setName] = useState(initial?.enterprise_name ?? "");
   const [type, setType] = useState(initial?.enterprise_type ?? "");
@@ -151,6 +176,21 @@ function EnterpriseForm({
   const [established, setEstablished] = useState(
     initial?.established_date ?? "",
   );
+  // F02A-16/17/28 and the capital's parts (backend 0137).
+  const [started, setStarted] = useState<"" | "yes" | "no">(
+    initial?.started_business === true ? "yes" : initial?.started_business === false ? "no" : "",
+  );
+  const [startDate, setStartDate] = useState(initial?.business_start_date ?? "");
+  const [existingType, setExistingType] = useState(initial?.existing_business_type ?? "");
+  const [capital, setCapital] = useState<CapitalForm>(() => {
+    const out = { ...EMPTY_CAPITAL };
+    for (const p of CAPITAL_PARTS) {
+      const v = initial?.[p.name];
+      if (typeof v === "number") out[p.name] = String(v);
+    }
+    return out;
+  });
+  const total = capitalTotal(capital);
   const [men, setMen] = useState(initial ? String(initial.employees_male) : "");
   const [women, setWomen] = useState(
     initial ? String(initial.employees_female) : "",
@@ -191,6 +231,11 @@ function EnterpriseForm({
       found.registration_status = "Registration status is required";
     if (needsTin(registration) && !TIN_RE.test(tin.trim()))
       found.tin_number = "The TIN must be exactly 10 digits";
+    if (started === "yes" && !startDate) found.business_start_date = "Business start date is required";
+    else if (started === "yes" && startDate > todayISO())
+      found.business_start_date = "The business start date cannot be in the future";
+    const capitalIssue = capitalError(capital);
+    if (capitalIssue) found[capitalIssue.field] = capitalIssue.message;
     if (!established) found.established_date = "Established date is required";
     else if (established > todayISO())
       found.established_date = "Established date cannot be in the future";
@@ -233,6 +278,11 @@ function EnterpriseForm({
       employees_female: female!,
       latitude: gps?.latitude,
       longitude: gps?.longitude,
+      started_business: started === "" ? null : started === "yes",
+      business_start_date: started === "yes" ? startDate || null : null,
+      // F02A-28: skipped for a new enterprise.
+      existing_business_type: started === "yes" ? existingType || null : null,
+      ...capitalPayload(capital),
       confirm_duplicate: confirmDuplicate || undefined,
       client_ref: clientRef,
       _owner_name: ownerName || undefined,
@@ -332,6 +382,8 @@ function EnterpriseForm({
             "tin_number",
             "phone",
             "email",
+            "business_start_date",
+            ...CAPITAL_PARTS.map((p) => p.name),
           ],
           ["employees_male", "employees_female", "region", "zone", "woreda"],
         ],
@@ -435,6 +487,64 @@ function EnterpriseForm({
             onBlur={() => live.touch("email")}
             keyboardType="email-address"
             error={errors.email}
+          />
+        </FormCard>
+        <FormCard
+          title="Start and initial capital"
+          hint="Initial capital = own contribution + loan/credit + grant + in-kind/productive assets + other start-up capital."
+        >
+          <ChoiceRow<"yes" | "no">
+            label="Started the business?"
+            value={started || undefined}
+            options={YES_NO}
+            onChange={(v) => {
+              setStarted(v);
+              if (v !== "yes") {
+                setStartDate("");
+                setExistingType("");
+              }
+            }}
+          />
+          {started === "yes" ? (
+            <>
+              <DateField
+                label="Business start date (EC)"
+                calendar="ethiopian"
+                required
+                value={startDate}
+                onChange={(v) => {
+                  setStartDate(v);
+                  live.touch("business_start_date");
+                }}
+                max={todayISO()}
+                error={errors.business_start_date}
+              />
+              <Select
+                label="Major existing business type"
+                value={existingType || undefined}
+                options={existingTypes}
+                onChange={setExistingType}
+                placeholder="Select"
+                hint="For an existing enterprise only."
+              />
+            </>
+          ) : null}
+          {CAPITAL_PARTS.map((p) => (
+            <Field
+              key={p.name}
+              label={`${p.label} (ETB)`}
+              value={capital[p.name]}
+              onChangeText={(v) => setCapital((c) => ({ ...c, [p.name]: v.replace(/[^d.]/g, "") }))}
+              onBlur={() => live.touch(p.name)}
+              keyboardType="decimal-pad"
+              error={errors[p.name]}
+            />
+          ))}
+          <Field
+            label="Initial capital (ETB)"
+            value={total === null ? "" : total.toLocaleString("en", { maximumFractionDigits: 2 })}
+            placeholder="Worked out from the parts"
+            editable={false}
           />
         </FormCard>
       </FormStep>

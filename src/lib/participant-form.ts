@@ -31,6 +31,8 @@ export interface FormState {
   sex: "male" | "female" | undefined;
   marital_status: string;
   education_level: string;
+  /** F01-17: what "Other (specify)" is (backend 0137). */
+  education_level_other: string;
   field_of_study: string;
   disability: boolean;
   /** F01-27: several can be ticked. */
@@ -47,6 +49,8 @@ export interface FormState {
   /** Typed when the woreda is not in the reference list yet. */
   woreda_other: string;
   kebele: string;
+  /** F01-13: the cluster chosen from the list (backend 0137); "" = the API decides. */
+  organization_id: string;
   residence_type: string;
   phone: string;
   alternative_phone: string;
@@ -76,6 +80,7 @@ export const EMPTY: FormState = {
   sex: undefined,
   marital_status: "",
   education_level: "",
+  education_level_other: "",
   field_of_study: "",
   disability: false,
   disability_types: [],
@@ -90,6 +95,7 @@ export const EMPTY: FormState = {
   woreda: "",
   woreda_other: "",
   kebele: "",
+  organization_id: "",
   residence_type: "",
   phone: "",
   alternative_phone: "",
@@ -107,8 +113,25 @@ export const EMPTY: FormState = {
 };
 
 export const OTHER = "other";
-/** F01-18: no field of study at these education levels (as on the server). */
-export const NO_STUDY_LEVELS = ["unable_to_read_write", "primary"];
+/**
+ * F01-18: no field of study at these education levels (as on the server).
+ * "primary" is the code from before the 10 levels (backend 0137), on old records.
+ */
+export const NO_STUDY_LEVELS = ["unable_to_read_write", "read_write_informal", "primary", "primary_1_4", "primary_5_8"];
+/** F01-17 "Other (specify)" (backend 0137). */
+export const EDUCATION_OTHER = "other";
+/** F01-1 (backend 0137): the API refuses a new "No" from anyone but an administrator. */
+export const NO_FAYIDA_MESSAGE = "Only an administrator can register someone without a Fayida ID: enter the Fayida number (FAN).";
+
+/** Who fills the form, for the F01 rules that depend on it (backend 0137). */
+export type FormUser = {
+  /** Administration write (super admin, programme manager): may answer "No Fayida". */
+  mayAdminister: boolean;
+  /** A national user, who chooses the cluster. */
+  national: boolean;
+  /** Edit: the answer stored, so a record already saved with No stays editable. */
+  storedHasFayida?: YesNo;
+};
 /** F01-29, fixed on the server. */
 export const TARGET_STATUSES = [
   { label: "IDP", value: "idp" },
@@ -185,6 +208,7 @@ export function validate(
   woredaListed: boolean,
   settings: ProgrammeSettings,
   mode: "register" | "edit" = "register",
+  who?: FormUser,
 ): FormErrors {
   const errors: FormErrors = {};
   const blank = (v: string) => v.trim() === "";
@@ -200,6 +224,9 @@ export function validate(
     errors.national_id = "A Fayida number has 12 digits.";
   } else if (form.has_fayida === "yes" && blank(form.national_id)) {
     errors.national_id = "Enter the Fayida number (FAN).";
+  }
+  if (who && form.has_fayida === "no" && !who.mayAdminister && who.storedHasFayida !== "no") {
+    errors.has_fayida = NO_FAYIDA_MESSAGE;
   }
   if (blank(form.national_id) && blank(form.kebele_id)) {
     errors.kebele_id = form.has_fayida === "no" ? "Enter the Kebele ID." : "Enter a National ID or a Kebele ID.";
@@ -228,6 +255,9 @@ export function validate(
   if (register) {
     need("marital_status", "Marital status is required.");
     need("education_level", "Education level is required.");
+  }
+  if (form.education_level === EDUCATION_OTHER && blank(form.education_level_other)) {
+    errors.education_level_other = "Say what the other education level is.";
   }
   if (form.field_of_study && NO_STUDY_LEVELS.includes(form.education_level)) {
     errors.field_of_study = "No field of study at this education level.";
@@ -261,6 +291,7 @@ export function validate(
   if (!form.woreda || (form.woreda === OTHER && !form.woreda_other.trim())) {
     errors.woreda = woredaListed ? "Woreda is required." : "Type the woreda.";
   }
+  if (register && who?.national && !form.organization_id) errors.organization_id = "Choose the cluster.";
   if (register) {
     need("kebele", "Kebele is required.");
     need("residence_type", "Choose rural, peri-urban or urban.");
@@ -321,6 +352,8 @@ export function toInput(form: FormState, clientRef?: string): Omit<ParticipantIn
     sex: form.sex as "male" | "female",
     marital_status: text(form.marital_status),
     education_level: text(form.education_level),
+    education_level_other: form.education_level === EDUCATION_OTHER ? text(form.education_level_other) : undefined,
+    organization_id: text(form.organization_id),
     field_of_study: studies ? text(form.field_of_study) : undefined,
     disability: form.disability,
     disability_type: form.disability ? form.disability_types : [],
@@ -384,6 +417,8 @@ export function fromRecord(
     sex: (p.sex as "male" | "female" | null) ?? undefined,
     marital_status: String(p.marital_status ?? ""),
     education_level: String(p.education_level ?? ""),
+    education_level_other: String(p.education_level_other ?? ""),
+    organization_id: String(p.organization_id ?? ""),
     field_of_study: String(p.field_of_study ?? ""),
     disability: !!p.disability,
     disability_types: Array.isArray(types) ? types.map(String) : types ? [String(types)] : [],
@@ -424,6 +459,7 @@ export const STEP_FIELDS: string[][] = [
     "nationality",
     "marital_status",
     "education_level",
+    "education_level_other",
     "field_of_study",
     "disability",
     "disability_types",
@@ -436,6 +472,7 @@ export const STEP_FIELDS: string[][] = [
     "woreda",
     "woreda_other",
     "kebele",
+    "organization_id",
     "residence_type",
     "phone",
     "alternative_phone",

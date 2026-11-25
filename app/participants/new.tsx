@@ -21,6 +21,7 @@ import {
   type FormState,
 } from "@/lib/participant-form";
 import { useLocations, useSettings } from "@/lib/reference";
+import { useAuth } from "@/lib/auth";
 import { Button, Card, ErrorText, ListSkeleton, StepBar, StickyFooter, Text } from "@/components/ui";
 import { ParticipantFields } from "@/components/participant-fields";
 import { colors, radius, spacing } from "@/lib/theme";
@@ -73,11 +74,14 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
 
   const locations = useLocations();
   const settings = useSettings();
+  // F01-1 / F01-13 (backend 0137): rules that depend on who registers.
+  const { can, isGlobalScope } = useAuth();
+  const who = { mayAdminister: can("admin", "write"), national: isGlobalScope };
   const woredaListed = () => locations.woredasOf(form.zone).length > 0;
 
   /** The web's rules for one field, shown when it is left or picked (not only on Save). */
   function checkField(key: keyof FormState, next: FormState = form) {
-    const found = validate(next, locations.woredasOf(next.zone).length > 0, settings);
+    const found = validate(next, locations.woredasOf(next.zone).length > 0, settings, "register", who);
     const keys: (keyof FormState)[] = key === "national_id" || key === "kebele_id" ? ["national_id", "kebele_id"] : [key];
     setErrors((prev) => {
       const out = { ...prev, form: undefined };
@@ -155,7 +159,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   }
 
   function goNext() {
-    const found = validate(form, woredaListed(), settings) as Record<string, string>;
+    const found = validate(form, woredaListed(), settings, "register", who) as Record<string, string>;
     const here = Object.fromEntries(Object.entries(found).filter(([k]) => STEP_FIELDS[step].includes(k)));
     if (Object.keys(here).length > 0) {
       showErrors(here as Errors);
@@ -182,7 +186,7 @@ function RegistrationForm({ initial, initialRef, queuedId }: { initial: FormStat
   }
 
   async function handleSave() {
-    const found = validate(form, woredaListed(), settings);
+    const found = validate(form, woredaListed(), settings, "register", who);
     if (Object.keys(found).length > 0) {
       const count = Object.keys(found).length;
       showErrors({ ...found, form: `${count} thing${count === 1 ? "" : "s"} to fix before saving. Check the fields marked in red.` });

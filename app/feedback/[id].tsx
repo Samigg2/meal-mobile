@@ -24,6 +24,10 @@ const TONE: Record<string, PillTone> = {
   in_review: "amber",
   resolved: "green",
   closed: "grey",
+  // CFRM (0134)
+  referred: "blue",
+  reopened: "amber",
+  unresolvable: "grey",
 };
 
 /** One feedback entry, read only: what was said, who by, where, and how it was answered. */
@@ -130,7 +134,8 @@ export default function FeedbackDetail() {
           <DetailText label="Closed" text={shortDate(f.date_closed) ?? null} />
         ) : null}
       </DetailCard>
-      {can("feedback", "write") && f.status !== "closed" ? (
+      {can("feedback", "write") &&
+      !["closed", "unresolvable"].includes(f.status as string) ? (
         <Button
           title="Edit"
           icon={Pencil}
